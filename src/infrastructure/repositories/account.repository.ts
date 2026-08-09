@@ -42,6 +42,14 @@ export class AccountRepository {
     return (rows[0] as AccountRow | undefined) ?? null;
   }
 
+  async findByAccountNumber(accountNumber: string): Promise<AccountRow | null> {
+    const rows = await this.db
+      .select()
+      .from(accounts)
+      .where(eq(accounts.accountNumber, accountNumber));
+    return (rows[0] as AccountRow | undefined) ?? null;
+  }
+
   async list(): Promise<AccountRow[]> {
     const rows = await this.db.select().from(accounts);
     return rows as AccountRow[];

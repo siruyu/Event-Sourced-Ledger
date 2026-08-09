@@ -3,32 +3,39 @@ import { Money } from '@/domain/money';
 import { ACCOUNT_TYPES, BALANCE_SIDES } from '@/domain/account';
 
 /** A decimal string that `Money` can parse (at most 4 decimal places). */
-export function parseMoney(value: string): Money {
-  return Money.fromDecimalString(value);
+function tryParseMoney(value: string): Money | null {
+  try {
+    return Money.fromDecimalString(value);
+  } catch {
+    return null;
+  }
 }
 
-export const decimalStringSchema = z
-  .string()
-  .refine((v) => {
-    try {
-      Money.fromDecimalString(v);
-      return true;
-    } catch {
-      return false;
-    }
-  }, 'Amount must be a decimal string with up to 4 decimal places');
+const invalidAmountMessage = 'Amount must be a decimal string with up to 4 decimal places';
 
 /** Strictly positive amount (deposits, withdrawals, transfers). */
-export const positiveMoneySchema = decimalStringSchema.refine(
-  (v) => Money.fromDecimalString(v).isPositive(),
-  'Amount must be greater than zero',
-);
+export const positiveMoneySchema = z.string().superRefine((v, ctx) => {
+  const money = tryParseMoney(v);
+  if (!money) {
+    ctx.addIssue({ code: z.ZodIssueCode.custom, message: invalidAmountMessage });
+    return;
+  }
+  if (!money.isPositive()) {
+    ctx.addIssue({ code: z.ZodIssueCode.custom, message: 'Amount must be greater than zero' });
+  }
+});
 
 /** Non-negative amount (overdraft limits, balances). */
-export const nonNegativeMoneySchema = decimalStringSchema.refine(
-  (v) => !Money.fromDecimalString(v).isNegative(),
-  'Amount must be zero or greater',
-);
+export const nonNegativeMoneySchema = z.string().superRefine((v, ctx) => {
+  const money = tryParseMoney(v);
+  if (!money) {
+    ctx.addIssue({ code: z.ZodIssueCode.custom, message: invalidAmountMessage });
+    return;
+  }
+  if (money.isNegative()) {
+    ctx.addIssue({ code: z.ZodIssueCode.custom, message: 'Amount must be zero or greater' });
+  }
+});
 
 export const accountTypeSchema = z.enum(ACCOUNT_TYPES);
 export const balanceSideSchema = z.enum(BALANCE_SIDES);

@@ -1,8 +1,15 @@
 import { Inject, Injectable } from '@nestjs/common';
-import { Pool } from 'pg';
+import { Pool, type QueryResultRow } from 'pg';
 import { PG_POOL } from '@/infrastructure/db/providers';
-import { type SqlExecutor } from '@/infrastructure/db/tx-runner';
+import type { SqlExecutor } from '@/infrastructure/db/tx-runner';
 import { type LedgerEntryRow, type TransactionRow } from '@/infrastructure/types';
+
+export type Queryable = {
+  query<R extends QueryResultRow = QueryResultRow>(
+    sql: string,
+    params?: unknown[],
+  ): Promise<{ rows: R[] }>;
+};
 
 export interface AppendEntryInput {
   transactionId: string;
@@ -30,6 +37,10 @@ export interface InsertTransactionInput {
 @Injectable()
 export class LedgerStore {
   constructor(@Inject(PG_POOL) private readonly pool: Pool) {}
+
+  private resolveQueryable(queryable?: Queryable): Queryable {
+    return queryable ?? this.pool;
+  }
 
   async insertTransaction(tx: SqlExecutor, input: InsertTransactionInput): Promise<void> {
     await tx.query(
@@ -125,14 +136,19 @@ export class LedgerStore {
    * direction add, entries in the opposite direction subtract.
    * Returns a Map<accountId, numericString>.
    */
-  async balancesFor(accountIds: string[], asOf?: Date): Promise<Map<string, string>> {
+  async balancesFor(
+    accountIds: string[],
+    asOf?: Date,
+    queryable?: Queryable,
+  ): Promise<Map<string, string>> {
     const result = new Map<string, string>();
     for (const id of accountIds) {
       result.set(id, '0');
     }
     if (accountIds.length === 0) return result;
 
-    const { rows } = await this.pool.query<{ accountId: string; balance: string }>(
+    const q = this.resolveQueryable(queryable);
+    const { rows } = await q.query<{ accountId: string; balance: string }>(
       `SELECT e.account_id AS "accountId",
               COALESCE(
                 SUM(CASE

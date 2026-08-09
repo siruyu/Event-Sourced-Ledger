@@ -9,9 +9,6 @@ import { LedgerStore } from '@/infrastructure/event-store/ledger.store';
 import type { CreateAccountDto } from '@/interfaces/accounts/accounts.dto';
 import { toAccountView, type AccountView } from './account-view';
 
-export const INTERNAL_CASH_ACCOUNT_NUMBER = 'LE-INTERNAL-CASH';
-export const INTERNAL_CASH_ACCOUNT_NAME = 'Bank Vault';
-
 @Injectable()
 export class AccountsService {
   constructor(
