@@ -1,0 +1,56 @@
+{
+  "name": "event-sourced-ledger",
+  "version": "0.1.0",
+  "description": "Event-sourced double-entry ledger core (banking). Immutable event log, derived balances, atomic invariants.",
+  "license": "MIT",
+  "private": true,
+  "engines": {
+    "node": ">=20"
+  },
+  "scripts": {
+    "build": "nest build",
+    "start": "node dist/main.js",
+    "start:prod": "node dist/main.js",
+    "dev": "nest start --watch",
+    "typecheck": "tsc --noEmit -p tsconfig.json",
+    "lint": "eslint .",
+    "test": "jest --runInBand",
+    "test:unit": "jest --runInBand test/unit",
+    "test:integration": "jest --runInBand test/integration",
+    "test:cov": "jest --runInBand --coverage",
+    "db:generate": "drizzle-kit generate",
+    "db:migrate": "drizzle-kit migrate",
+    "db:studio": "drizzle-kit studio"
+  },
+  "dependencies": {
+    "@nestjs/common": "^11.1.28",
+    "@nestjs/config": "^4.0.4",
+    "@nestjs/core": "^11.1.28",
+    "@nestjs/platform-express": "^11.1.28",
+    "drizzle-orm": "^0.44.7",
+    "nestjs-pino": "^4.6.1",
+    "pg": "^8.23.0",
+    "pino": "^9.14.0",
+    "pino-http": "^10.5.0",
+    "reflect-metadata": "^0.2.2",
+    "rxjs": "^7.8.2",
+    "zod": "^3.25.76"
+  },
+  "devDependencies": {
+    "@eslint/js": "^9.39.5",
+    "@nestjs/cli": "^11.0.24",
+    "@nestjs/testing": "^11.1.28",
+    "@types/express": "^5.0.6",
+    "@types/jest": "^29.5.14",
+    "@types/node": "^26.2.0",
+    "@types/pg": "^8.21.0",
+    "@types/supertest": "^7.2.1",
+    "drizzle-kit": "^0.31.10",
+    "eslint": "^9.39.5",
+    "jest": "^29.7.0",
+    "supertest": "^7.2.2",
+    "ts-jest": "^29.4.12",
+    "typescript": "^5.9.3",
+    "typescript-eslint": "^8.66.0"
+  }
+}
