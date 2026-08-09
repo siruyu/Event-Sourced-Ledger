@@ -7,6 +7,8 @@ import './pg-types';
 import * as schema from '../../../db/schema';
 import { DRIZZLE_DB, PG_POOL, type Database } from './providers';
 import { PostgresTransactionRunner } from './tx-runner';
+import { AccountRepository } from '@/infrastructure/repositories/account.repository';
+import { LedgerStore } from '@/infrastructure/event-store/ledger.store';
 
 const poolProvider: Provider = {
   provide: PG_POOL,
@@ -31,7 +33,19 @@ const drizzleProvider: Provider = {
 
 @Global()
 @Module({
-  providers: [poolProvider, drizzleProvider, PostgresTransactionRunner],
-  exports: [PG_POOL, DRIZZLE_DB, PostgresTransactionRunner],
+  providers: [
+    poolProvider,
+    drizzleProvider,
+    PostgresTransactionRunner,
+    AccountRepository,
+    LedgerStore,
+  ],
+  exports: [
+    PG_POOL,
+    DRIZZLE_DB,
+    PostgresTransactionRunner,
+    AccountRepository,
+    LedgerStore,
+  ],
 })
 export class DatabaseModule {}
