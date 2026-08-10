@@ -1,5 +1,5 @@
 import { Inject, Injectable } from '@nestjs/common';
-import { eq, inArray } from 'drizzle-orm';
+import { asc, eq, inArray, sql } from 'drizzle-orm';
 import { DRIZZLE_DB, type Database } from '@/infrastructure/db/providers';
 import { type SqlExecutor } from '@/infrastructure/db/tx-runner';
 import { accounts, type NewAccount } from '../../../db/schema';
@@ -51,9 +51,38 @@ export class AccountRepository {
     return (rows[0] as AccountRow | undefined) ?? null;
   }
 
-  async list(): Promise<AccountRow[]> {
-    const rows = await this.db.select().from(accounts);
+  /**
+   * Keyset pagination over accounts, sorted by (created_at, id). The cursor's
+   * createdAt is the raw DB timestamp (microsecond precision) so the boundary
+   * comparison is exact — no rows are skipped or repeated.
+   */
+  async paginate(
+    cursor: { createdAt: string; id: string } | null,
+    limit: number,
+  ): Promise<AccountRow[]> {
+    const condition = cursor
+      ? sql`(${accounts.createdAt} > ${cursor.createdAt}::timestamptz
+             OR (${accounts.createdAt} = ${cursor.createdAt}::timestamptz
+                 AND ${accounts.id} > ${cursor.id}::uuid))`
+      : undefined;
+
+    const rows = await this.db
+      .select()
+      .from(accounts)
+      .where(condition)
+      .orderBy(asc(accounts.createdAt), asc(accounts.id))
+      .limit(limit + 1);
+
     return rows as AccountRow[];
+  }
+
+  /** The full-precision (microsecond) created_at of an account, as raw text. */
+  async rawCreatedAt(id: string): Promise<string> {
+    const rows = await this.db
+      .select({ createdAt: sql<string>`created_at::text` })
+      .from(accounts)
+      .where(eq(accounts.id, id));
+    return rows[0]?.createdAt ?? '';
   }
 
   async accountInfoFor(

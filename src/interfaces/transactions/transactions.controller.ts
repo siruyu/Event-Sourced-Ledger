@@ -1,8 +1,14 @@
-import { Body, Controller, Get, HttpCode, HttpStatus, Param, Post } from '@nestjs/common';
-import { TransactionsService, type TransferDto } from '@/application/transactions/transactions.service';
+import { Body, Controller, Get, HttpCode, HttpStatus, Param, Post, Query } from '@nestjs/common';
+import {
+  TransactionsService,
+  type AccountTransactionItem,
+  type TransferDto,
+} from '@/application/transactions/transactions.service';
 import type { TransactionView } from '@/application/transactions/transaction-view';
 import { ZodValidationPipe } from '@/common/validation/zod-validation.pipe';
 import { uuidSchema } from '@/common/validation/schemas';
+import { listQuerySchema, type ListQuery } from '@/common/validation/pagination.dto';
+import { decodeCursor, type Page } from '@/common/cursor';
 import {
   movementSchema,
   transferSchema,
@@ -37,6 +43,16 @@ export class TransactionsController {
     @Body(new ZodValidationPipe(transferSchema)) dto: TransferDto,
   ): Promise<TransactionView> {
     return this.transactions.transfer(dto);
+  }
+
+  @Get('accounts/:id/transactions')
+  listForAccount(
+    @Param('id', new ZodValidationPipe(uuidSchema)) id: string,
+    @Query(new ZodValidationPipe(listQuerySchema)) query: ListQuery,
+  ): Promise<Page<AccountTransactionItem>> {
+    const decoded = decodeCursor(query.cursor);
+    const afterSeq = decoded && typeof decoded.seq === 'number' ? decoded.seq : null;
+    return this.transactions.listForAccount(id, afterSeq, query.limit ?? 20);
   }
 
   @Get('transactions/:id')

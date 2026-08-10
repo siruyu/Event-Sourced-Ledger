@@ -1,4 +1,5 @@
 import { Injectable } from '@nestjs/common';
+import { encodeCursor, type Page } from '@/common/cursor';
 import { Money } from '@/domain/money';
 import { balanceEffect } from '@/domain/invariants';
 import { AccountNotFoundError } from '@/domain/errors';
@@ -21,12 +22,11 @@ export interface AuditEventView {
   explanation: string;
 }
 
-export interface AuditView {
+export interface AuditView extends Page<AuditEventView> {
   accountId: string;
   accountNumber: string;
   balance: string;
   asOf?: string;
-  events: AuditEventView[];
 }
 
 function humanType(type: string): string {
@@ -44,7 +44,7 @@ export class AuditService {
     private readonly store: LedgerStore,
   ) {}
 
-  async get(accountId: string, asOf?: Date): Promise<AuditView> {
+  async get(accountId: string, asOf?: Date, afterSeq?: number | null, limit = 20): Promise<AuditView> {
     const account = await this.accounts.findById(accountId);
     if (!account) throw new AccountNotFoundError();
 
@@ -53,7 +53,7 @@ export class AuditService {
     const accountInfo = await this.accounts.accountInfoFor(counterpartyIds);
 
     let running = Money.zero();
-    const events: AuditEventView[] = rows.map((row) => {
+    const allEvents: AuditEventView[] = rows.map((row) => {
       const delta =
         balanceEffect(account.normalSide, row.direction) === 1
           ? Money.fromDecimalString(row.amount)
@@ -80,12 +80,19 @@ export class AuditService {
       };
     });
 
+    const from = afterSeq ?? 0;
+    const pageCandidates = allEvents.filter((e) => e.seq > from);
+    const hasMore = pageCandidates.length > limit;
+    const page = hasMore ? pageCandidates.slice(0, limit) : pageCandidates;
+    const last = page[page.length - 1];
+
     return {
       accountId: account.id,
       accountNumber: account.accountNumber,
       balance: running.toDecimalString(),
       ...(asOf ? { asOf: asOf.toISOString() } : {}),
-      events,
+      items: page,
+      ...(hasMore && last ? { nextCursor: encodeCursor({ seq: last.seq }) } : {}),
     };
   }
 

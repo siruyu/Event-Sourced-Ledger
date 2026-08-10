@@ -105,8 +105,8 @@ describe('Reversal / void [T-16]', () => {
     await request(http()).post(`/api/v1/transactions/${deposit.body.id}/void`).expect(201);
 
     const trail = await request(http()).get(`/api/v1/accounts/${acc.id}/audit`).expect(200);
-    expect(trail.body.events).toHaveLength(2);
-    expect(trail.body.events.map((e: { type: string }) => e.type)).toEqual(['deposit', 'reversal']);
+    expect(trail.body.items).toHaveLength(2);
+    expect(trail.body.items.map((e: { type: string }) => e.type)).toEqual(['deposit', 'reversal']);
     expect(trail.body.balance).toBe('0.0000');
   });
 });

@@ -1,5 +1,6 @@
 import { Injectable } from '@nestjs/common';
 import { randomUUID } from 'crypto';
+import { encodeCursor, type Page } from '@/common/cursor';
 import { DEFAULT_NORMAL_SIDE, generateAccountNumber } from '@/domain/account';
 import { AccountNotFoundError, InvalidTransactionError } from '@/domain/errors';
 import { Money } from '@/domain/money';
@@ -35,10 +36,27 @@ export class AccountsService {
     return this.get(id);
   }
 
-  async list(): Promise<AccountView[]> {
-    const accounts = await this.accounts.list();
-    const balances = await this.store.balancesFor(accounts.map((a) => a.id));
-    return accounts.map((a) => toAccountView(a, balances.get(a.id) ?? '0'));
+  async listPage(
+    cursor: { createdAt: string; id: string } | null,
+    limit: number,
+  ): Promise<Page<AccountView>> {
+    const rows = await this.accounts.paginate(cursor, limit);
+    const hasMore = rows.length > limit;
+    const pageRows = hasMore ? rows.slice(0, limit) : rows;
+
+    const balances = await this.store.balancesFor(pageRows.map((a) => a.id));
+    const items = pageRows.map((a) => toAccountView(a, balances.get(a.id) ?? '0'));
+
+    const last = pageRows[pageRows.length - 1];
+    let nextCursor: string | undefined;
+    if (hasMore && last) {
+      const rawCreatedAt = await this.accounts.rawCreatedAt(last.id);
+      nextCursor = encodeCursor({ createdAt: rawCreatedAt, id: last.id });
+    }
+    return {
+      items,
+      ...(nextCursor ? { nextCursor } : {}),
+    };
   }
 
   async get(id: string): Promise<AccountView> {

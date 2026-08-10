@@ -43,6 +43,19 @@ export interface AuditRow {
   counterpartyIds: string[];
 }
 
+export interface AccountTransactionRow {
+  seq: number;
+  transactionId: string;
+  type: string;
+  reference: string | null;
+  description: string | null;
+  status: string;
+  postedAt: Date;
+  direction: 'debit' | 'credit';
+  amount: string;
+  currency: string;
+}
+
 /**
  * The event store. Writes are append-only and always executed inside the caller's
  * transaction (a SqlExecutor); reads run directly on the pool. Never exposes an
@@ -158,9 +171,15 @@ export class LedgerStore {
 
   /**
    * Audit trail rows for an account: each event joined to its transaction, with
-   * the sibling (counterparty) account ids of the same transaction.
+   * the sibling (counterparty) account ids of the same transaction. Supports
+   * keyset pagination by per-account seq.
    */
-  async rawAudit(accountId: string, asOf?: Date): Promise<AuditRow[]> {
+  async rawAudit(
+    accountId: string,
+    asOf?: Date,
+    afterSeq?: number | null,
+    limit?: number,
+  ): Promise<AuditRow[]> {
     const { rows } = await this.pool.query<AuditRow>(
       `SELECT e.seq, e.direction, e.amount, e.currency, e.created_at AS "createdAt",
               t.id AS "transactionId", t.type, t.reference, t.description,
@@ -175,8 +194,29 @@ export class LedgerStore {
          JOIN transactions t ON t.id = e.transaction_id
         WHERE e.account_id = $1
           AND ($2::timestamptz IS NULL OR e.created_at <= $2)
-        ORDER BY e.seq ASC`,
-      [accountId, asOf ?? null],
+          AND ($3::bigint IS NULL OR e.seq > $3)
+        ORDER BY e.seq ASC
+        LIMIT $4`,
+      [accountId, asOf ?? null, afterSeq ?? null, limit ?? null],
+    );
+    return rows;
+  }
+
+  /** Keyset-paginated list of an account's own transaction legs, newest-first. */
+  async paginateAccountTransactions(
+    accountId: string,
+    afterSeq: number | null,
+    limit: number,
+  ): Promise<AccountTransactionRow[]> {
+    const { rows } = await this.pool.query<AccountTransactionRow>(
+      `SELECT e.seq, t.id AS "transactionId", t.type, t.reference, t.description,
+              t.status, t.posted_at AS "postedAt", e.direction, e.amount, e.currency
+         FROM entries e
+         JOIN transactions t ON t.id = e.transaction_id
+        WHERE e.account_id = $1 AND ($2::bigint IS NULL OR e.seq > $2)
+        ORDER BY e.seq ASC
+        LIMIT $3`,
+      [accountId, afterSeq ?? null, limit],
     );
     return rows;
   }

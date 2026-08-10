@@ -1,6 +1,7 @@
 import { Injectable } from '@nestjs/common';
 import { Logger } from 'nestjs-pino';
 import { randomUUID } from 'crypto';
+import { encodeCursor, type Page } from '@/common/cursor';
 import { Money } from '@/domain/money';
 import {
   buildDeposit,
@@ -40,6 +41,19 @@ export interface TransferDto {
   amount: string;
   reference?: string;
   description?: string;
+}
+
+export interface AccountTransactionItem {
+  seq: number;
+  transactionId: string;
+  type: string;
+  status: string;
+  reference: string | null;
+  description: string | null;
+  direction: 'debit' | 'credit';
+  amount: string;
+  currency: string;
+  postedAt: string;
 }
 
 /**
@@ -109,6 +123,38 @@ export class TransactionsService {
     const row = await this.store.findTransaction(id);
     if (!row) throw new NotFoundError('Transaction not found');
     return this.view(id);
+  }
+
+  async listForAccount(
+    accountId: string,
+    afterSeq: number | null,
+    limit: number,
+  ): Promise<Page<AccountTransactionItem>> {
+    const account = await this.accounts.findById(accountId);
+    if (!account) throw new AccountNotFoundError();
+
+    const rows = await this.store.paginateAccountTransactions(accountId, afterSeq, limit + 1);
+    const hasMore = rows.length > limit;
+    const page = hasMore ? rows.slice(0, limit) : rows;
+
+    const items = page.map((r) => ({
+      seq: r.seq,
+      transactionId: r.transactionId,
+      type: r.type,
+      status: r.status,
+      reference: r.reference,
+      description: r.description,
+      direction: r.direction,
+      amount: Money.fromDecimalString(r.amount).toDecimalString(),
+      currency: r.currency,
+      postedAt: r.postedAt.toISOString(),
+    }));
+
+    const last = page[page.length - 1];
+    return {
+      items,
+      ...(hasMore && last ? { nextCursor: encodeCursor({ seq: last.seq }) } : {}),
+    };
   }
 
   private async currencyFor(accountId: string): Promise<string> {

@@ -61,9 +61,9 @@ describe('Accounts API [T-05]', () => {
     await createAccount({ name: 'B', currency: 'EUR' }).expect(201);
 
     const res = await request(app.getHttpServer()).get('/api/v1/accounts').expect(200);
-    expect(res.body).toHaveLength(2);
-    expect(res.body.map((a: { name: string }) => a.name)).toEqual(['A', 'B']);
-    for (const account of res.body) {
+    expect(res.body.items).toHaveLength(2);
+    expect(res.body.items.map((a: { name: string }) => a.name)).toEqual(['A', 'B']);
+    for (const account of res.body.items) {
       expect(account.balance).toBe('0.0000');
     }
   });

@@ -57,9 +57,9 @@ describe('Audit trail [T-10]', () => {
     const trail = await audit(a.id);
 
     expect(trail.balance).toBe('650.0000');
-    expect(trail.events).toHaveLength(3);
+    expect(trail.items).toHaveLength(3);
 
-    expect(trail.events[0]).toMatchObject({
+    expect(trail.items[0]).toMatchObject({
       seq: 1,
       type: 'deposit',
       direction: 'debit',
@@ -67,20 +67,20 @@ describe('Audit trail [T-10]', () => {
       effect: '+1000.0000',
       runningBalance: '1000.0000',
     });
-    expect(trail.events[0].explanation).toContain('Deposit +1000.0000');
-    expect(trail.events[0].counterparty.name).toBe('Bank Vault');
+    expect(trail.items[0].explanation).toContain('Deposit +1000.0000');
+    expect(trail.items[0].counterparty.name).toBe('Bank Vault');
 
-    expect(trail.events[1]).toMatchObject({
+    expect(trail.items[1]).toMatchObject({
       seq: 2,
       type: 'transfer',
       direction: 'credit',
       effect: '-250.0000',
       runningBalance: '750.0000',
     });
-    expect(trail.events[1].counterparty.accountNumber).toBe(b.accountNumber);
-    expect(trail.events[1].explanation).toContain('Transfer -250.0000');
+    expect(trail.items[1].counterparty.accountNumber).toBe(b.accountNumber);
+    expect(trail.items[1].explanation).toContain('Transfer -250.0000');
 
-    expect(trail.events[2]).toMatchObject({
+    expect(trail.items[2]).toMatchObject({
       seq: 3,
       type: 'withdrawal',
       direction: 'credit',
@@ -89,7 +89,7 @@ describe('Audit trail [T-10]', () => {
     });
 
     // The trail must fully explain how the balance was reached.
-    expect(trail.events[2].runningBalance).toBe(trail.balance);
+    expect(trail.items[2].runningBalance).toBe(trail.balance);
     expect(dep.body.id).toBeDefined();
   });
 
@@ -100,15 +100,15 @@ describe('Audit trail [T-10]', () => {
     await request(http()).post('/api/v1/transfers').send({ fromAccountId: a.id, toAccountId: b.id, amount: '200.00' }).expect(201);
 
     const bTrail = await audit(b.id);
-    expect(bTrail.events).toHaveLength(1);
-    expect(bTrail.events[0]).toMatchObject({
+    expect(bTrail.items).toHaveLength(1);
+    expect(bTrail.items[0]).toMatchObject({
       type: 'transfer',
       direction: 'debit',
       amount: '200.0000',
       effect: '+200.0000',
       runningBalance: '200.0000',
     });
-    expect(bTrail.events[0].counterparty.accountNumber).toBe(a.accountNumber);
+    expect(bTrail.items[0].counterparty.accountNumber).toBe(a.accountNumber);
     expect(bTrail.balance).toBe('200.0000');
   });
 
@@ -123,7 +123,7 @@ describe('Audit trail [T-10]', () => {
     await pool.query('UPDATE entries SET created_at = $1 WHERE transaction_id = $2', [t, d2.body.id]);
 
     const trail = await audit(a.id, new Date(t.getTime() + 1).toISOString());
-    expect(trail.events).toHaveLength(2);
+    expect(trail.items).toHaveLength(2);
     expect(trail.balance).toBe('800.0000');
     expect(trail.asOf).toBeDefined();
   });
@@ -131,7 +131,7 @@ describe('Audit trail [T-10]', () => {
   it('returns an empty trail for a fresh account with zero balance', async () => {
     const a = await createAccount();
     const trail = await audit(a.id);
-    expect(trail.events).toEqual([]);
+    expect(trail.items).toEqual([]);
     expect(trail.balance).toBe('0.0000');
   });
 
