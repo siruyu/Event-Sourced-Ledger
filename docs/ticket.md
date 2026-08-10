@@ -285,7 +285,7 @@ the same two accounts (and into the same account) against a real Postgres
 - [ ] Concurrent identical transfers cannot double-spend the same funds
 - [ ] Test asserts zero partial-state observations (a failed transfer leaves both accounts untouched)
 - [ ] Same suite covers overdraft, frozen-account, and double-entry rejections
-- [ ] Tests run against a real Postgres via Testcontainers in CI (not mocked)
+- [ ] Tests run against a real Postgres database via the test harness (`TEST_DATABASE_URL`), auto-created, applied migrations, in CI (not mocked)
 
 ---
 

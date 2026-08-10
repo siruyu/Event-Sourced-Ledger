@@ -74,7 +74,7 @@ append-only log.
 | **Database** | **PostgreSQL 16** | Best-in-class ACID, `SELECT ... FOR UPDATE`, unique constraints, `NUMERIC(19,4)`, JSONB for transaction metadata. The only sane choice for financial correctness. | MySQL (weaker locking/isolation tooling); MongoDB (no cross-document atomicity for multi-leg transfers); EventStoreDB (overkill, and we want the invariants in the same tx as the events) |
 | **ORM / data access** | **Drizzle ORM + drizzle-kit** migrations | Type-safe, close to SQL, and — critically — easy to run `SELECT ... FOR UPDATE` and multi-statement transactions without ORM magic obscuring the SQL. | Prisma (interactive transactions work but abstract the SQL; less transparent for the concurrency-critical path) |
 | **Validation** | **Zod** | Runtime schema validation for API DTOs and event payloads; shares types with TS. | class-validator (fine, but Zod is lighter and more composable) |
-| **Testing** | **Vitest + Supertest + Testcontainers** | Fast unit tests; API integration tests against a *real* Postgres container so transaction/locking behavior is actually verified. | Mocks-only testing would silently hide concurrency bugs — never acceptable here |
+| **Testing** | **Jest + ts-jest + Supertest + real PostgreSQL** | Unit tests are fast; API integration tests run against a *real* Postgres database (local install or a CI service container) so transaction/locking behavior is actually verified. Jest+ts-jest is used rather than Vitest because NestJS DI relies on `emitDecoratorMetadata`, which esbuild-based runners cannot emit. | Testcontainers-in-Docker would work where Docker is available; the harness auto-creates its `ledger_test` database, so no external services are required |
 | **Docs** | **OpenAPI 3 / Swagger** (NestJS swagger module) | Machine-readable, live-updating API contract. | — |
 | **Observability** | **pino** structured logging + request IDs; optional Prometheus metrics | JSON logs, correlation IDs across the request lifecycle. | — |
 | **Containers** | **Docker Compose** | One command to run Postgres (+ API + UI). | — |
@@ -457,18 +457,21 @@ migration-friendly — old events remain replayable after schema evolution.
 
 ## 12. Testing strategy
 
-- **Unit (Vitest, no DB):** Money math, double-entry builder, overdraft/invariant rules,
+- **Unit (Jest, no DB):** Money math, double-entry builder, overdraft/invariant rules,
   account lifecycle. Target ≥ 80% coverage of `domain/`.
-- **Integration (Supertest + Testcontainers → real Postgres):**
+- **Integration (Supertest + real PostgreSQL):**
   - happy-path transfer + balance derivation
   - rejected overdraft leaves both accounts untouched
   - **concurrency stress test**: N parallel transfers between the same pair; assert final
     balances reconcile with history and no event seq is duplicated (F7/G7 proof)
   - point-in-time queries
   - audit trail reconstruction matches a replayed balance
+- The test harness (`test/integration/db.ts`) connects to `TEST_DATABASE_URL`, creates the
+  database if absent, applies migrations, and truncates between suites. CI runs it against a
+  PostgreSQL 16 service container.
 - **Reconciliation job** (test or script): assert for every transaction `Σ(debits) =
   Σ(credits)` and that replay reproduces all stored expectations.
-- **CI (GitHub Actions):** `lint → typecheck → unit → integration (testcontainers) → build`.
+- **CI (GitHub Actions):** `lint → typecheck → unit → integration (real Postgres) → build`.
 
 ---
 
