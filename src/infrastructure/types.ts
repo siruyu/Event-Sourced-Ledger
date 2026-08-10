@@ -12,6 +12,7 @@ export interface AccountRow {
   overdraftLimit: string;
   status: AccountStatus;
   currentSequence: number;
+  metadata: Record<string, unknown>;
   createdAt: Date;
   updatedAt: Date;
 }

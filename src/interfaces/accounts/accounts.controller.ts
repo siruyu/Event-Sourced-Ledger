@@ -1,10 +1,15 @@
-import { Body, Controller, Get, HttpCode, HttpStatus, Param, Post, Query } from '@nestjs/common';
+import { Body, Controller, Get, HttpCode, HttpStatus, Param, Patch, Post, Query } from '@nestjs/common';
 import { AccountsService } from '@/application/accounts/accounts.service';
 import type { AccountView } from '@/application/accounts/account-view';
 import { AuditService, type AuditView } from '@/application/audit/audit.service';
 import { ZodValidationPipe } from '@/common/validation/zod-validation.pipe';
 import { asOfSchema, uuidSchema } from '@/common/validation/schemas';
-import { createAccountSchema, type CreateAccountDto } from './accounts.dto';
+import {
+  createAccountSchema,
+  updateStatusSchema,
+  type CreateAccountDto,
+  type UpdateStatusDto,
+} from './accounts.dto';
 
 @Controller('accounts')
 export class AccountsController {
@@ -24,6 +29,15 @@ export class AccountsController {
   @Get()
   list(): Promise<AccountView[]> {
     return this.accounts.list();
+  }
+
+  @Patch(':id/status')
+  @HttpCode(HttpStatus.OK)
+  updateStatus(
+    @Param('id', new ZodValidationPipe(uuidSchema)) id: string,
+    @Body(new ZodValidationPipe(updateStatusSchema)) dto: UpdateStatusDto,
+  ): Promise<AccountView> {
+    return this.accounts.updateStatus(id, dto.status);
   }
 
   @Get(':id/balance')

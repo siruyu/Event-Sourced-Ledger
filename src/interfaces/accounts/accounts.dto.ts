@@ -15,3 +15,10 @@ export const createAccountSchema = z.object({
 });
 
 export type CreateAccountDto = z.infer<typeof createAccountSchema>;
+
+export const updateStatusSchema = z.object({
+  status: z.enum(['active', 'frozen', 'closed'], {
+    errorMap: () => ({ message: 'Status must be "active", "frozen", or "closed"' }),
+  }),
+});
+export type UpdateStatusDto = z.infer<typeof updateStatusSchema>;

@@ -57,6 +57,7 @@ export const accounts = pgTable(
       .default('0'),
     status: accountStatus('status').notNull().default('active'),
     currentSequence: bigint('current_sequence', { mode: 'number' }).notNull().default(0),
+    metadata: jsonb('metadata').notNull().default(sql`'{}'::jsonb`),
     createdAt: timestamp('created_at', { withTimezone: true }).notNull().defaultNow(),
     updatedAt: timestamp('updated_at', { withTimezone: true }).notNull().defaultNow(),
   },

@@ -11,6 +11,7 @@ export interface AccountView {
   overdraftLimit: string;
   status: string;
   balance: string;
+  metadata: Record<string, unknown>;
   createdAt: string;
 }
 
@@ -30,6 +31,7 @@ export function toAccountView(account: AccountRow, balance: string): AccountView
     overdraftLimit: normalizeAmount(account.overdraftLimit),
     status: account.status,
     balance: normalizeAmount(balance),
+    metadata: account.metadata,
     createdAt: account.createdAt.toISOString(),
   };
 }

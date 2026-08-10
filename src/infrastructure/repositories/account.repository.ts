@@ -13,6 +13,7 @@ export interface LockedAccount {
   overdraftLimit: string;
   status: 'active' | 'frozen' | 'closed';
   currentSequence: number;
+  metadata: Record<string, unknown>;
 }
 
 @Injectable()
@@ -80,7 +81,7 @@ export class AccountRepository {
       `SELECT id, account_number AS "accountNumber",
               normal_side AS "normalSide", currency,
               overdraft_limit AS "overdraftLimit", status,
-              current_sequence AS "currentSequence"
+              current_sequence AS "currentSequence", metadata
          FROM accounts
         WHERE id = ANY($1::uuid[])
         ORDER BY id
