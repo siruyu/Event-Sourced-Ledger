@@ -1,5 +1,13 @@
 import { Body, Controller, Get, HttpCode, HttpStatus, Param, Post, Query } from '@nestjs/common';
 import {
+  ApiBody,
+  ApiOperation,
+  ApiParam,
+  ApiQuery,
+  ApiResponse,
+  ApiTags,
+} from '@nestjs/swagger';
+import {
   TransactionsService,
   type AccountTransactionItem,
   type TransferDto,
@@ -9,18 +17,28 @@ import { ZodValidationPipe } from '@/common/validation/zod-validation.pipe';
 import { uuidSchema } from '@/common/validation/schemas';
 import { listQuerySchema, type ListQuery } from '@/common/validation/pagination.dto';
 import { decodeCursor, type Page } from '@/common/cursor';
+import { jsonSchema, pageRefSchema } from '@/common/swagger/contract';
 import {
   movementSchema,
   transferSchema,
   type MovementDto,
 } from './transactions.dto';
 
+const transactionRef = '#/components/schemas/Transaction';
+const apiErrorRef = '#/components/schemas/ApiError';
+
+@ApiTags('transactions')
 @Controller()
 export class TransactionsController {
   constructor(private readonly transactions: TransactionsService) {}
 
   @Post('accounts/:id/deposits')
   @HttpCode(HttpStatus.CREATED)
+  @ApiOperation({ summary: 'Deposit money into an account' })
+  @ApiParam({ name: 'id', type: 'string', format: 'uuid' })
+  @ApiBody({ schema: jsonSchema(movementSchema) })
+  @ApiResponse({ status: 201, description: 'Posted deposit', schema: { $ref: transactionRef } })
+  @ApiResponse({ status: 422, description: 'Balance/invariant violation', schema: { $ref: apiErrorRef } })
   deposit(
     @Param('id', new ZodValidationPipe(uuidSchema)) id: string,
     @Body(new ZodValidationPipe(movementSchema)) dto: MovementDto,
@@ -30,6 +48,11 @@ export class TransactionsController {
 
   @Post('accounts/:id/withdrawals')
   @HttpCode(HttpStatus.CREATED)
+  @ApiOperation({ summary: 'Withdraw money from an account' })
+  @ApiParam({ name: 'id', type: 'string', format: 'uuid' })
+  @ApiBody({ schema: jsonSchema(movementSchema) })
+  @ApiResponse({ status: 201, description: 'Posted withdrawal', schema: { $ref: transactionRef } })
+  @ApiResponse({ status: 422, description: 'Insufficient funds / invariant violation', schema: { $ref: apiErrorRef } })
   withdraw(
     @Param('id', new ZodValidationPipe(uuidSchema)) id: string,
     @Body(new ZodValidationPipe(movementSchema)) dto: MovementDto,
@@ -39,6 +62,11 @@ export class TransactionsController {
 
   @Post('transfers')
   @HttpCode(HttpStatus.CREATED)
+  @ApiOperation({ summary: 'Transfer money between two accounts (atomic double-entry)' })
+  @ApiBody({ schema: jsonSchema(transferSchema) })
+  @ApiResponse({ status: 201, description: 'Posted transfer', schema: { $ref: transactionRef } })
+  @ApiResponse({ status: 422, description: 'Insufficient funds / invariant violation', schema: { $ref: apiErrorRef } })
+  @ApiResponse({ status: 404, description: 'Account not found', schema: { $ref: apiErrorRef } })
   transfer(
     @Body(new ZodValidationPipe(transferSchema)) dto: TransferDto,
   ): Promise<TransactionView> {
@@ -46,6 +74,11 @@ export class TransactionsController {
   }
 
   @Get('accounts/:id/transactions')
+  @ApiOperation({ summary: 'List an account\'s transactions (paginated)' })
+  @ApiParam({ name: 'id', type: 'string', format: 'uuid' })
+  @ApiQuery({ name: 'limit', required: false, schema: { type: 'integer', minimum: 1, maximum: 100, default: 20 } })
+  @ApiQuery({ name: 'cursor', required: false, description: 'Opaque pagination cursor' })
+  @ApiResponse({ status: 200, description: 'Page of transaction legs', schema: pageRefSchema('#/components/schemas/TransactionLeg') })
   listForAccount(
     @Param('id', new ZodValidationPipe(uuidSchema)) id: string,
     @Query(new ZodValidationPipe(listQuerySchema)) query: ListQuery,
@@ -56,12 +89,20 @@ export class TransactionsController {
   }
 
   @Get('transactions/:id')
+  @ApiOperation({ summary: 'Get a transaction with all its legs' })
+  @ApiParam({ name: 'id', type: 'string', format: 'uuid' })
+  @ApiResponse({ status: 200, description: 'Transaction detail', schema: { $ref: transactionRef } })
+  @ApiResponse({ status: 404, description: 'Transaction not found', schema: { $ref: apiErrorRef } })
   get(@Param('id', new ZodValidationPipe(uuidSchema)) id: string): Promise<TransactionView> {
     return this.transactions.get(id);
   }
 
   @Post('transactions/:id/void')
   @HttpCode(HttpStatus.CREATED)
+  @ApiOperation({ summary: 'Void a transaction via a compensating reversal' })
+  @ApiParam({ name: 'id', type: 'string', format: 'uuid' })
+  @ApiResponse({ status: 201, description: 'Reversal transaction', schema: { $ref: transactionRef } })
+  @ApiResponse({ status: 422, description: 'Already void / invalid', schema: { $ref: apiErrorRef } })
   voidTransaction(
     @Param('id', new ZodValidationPipe(uuidSchema)) id: string,
   ): Promise<TransactionView> {
