@@ -1,5 +1,5 @@
 import { Inject, Injectable } from '@nestjs/common';
-import { eq } from 'drizzle-orm';
+import { eq, inArray } from 'drizzle-orm';
 import { DRIZZLE_DB, type Database } from '@/infrastructure/db/providers';
 import { type SqlExecutor } from '@/infrastructure/db/tx-runner';
 import { accounts, type NewAccount } from '../../../db/schema';
@@ -53,6 +53,19 @@ export class AccountRepository {
   async list(): Promise<AccountRow[]> {
     const rows = await this.db.select().from(accounts);
     return rows as AccountRow[];
+  }
+
+  async accountInfoFor(
+    ids: string[],
+  ): Promise<Map<string, { accountNumber: string; name: string }>> {
+    const result = new Map<string, { accountNumber: string; name: string }>();
+    if (ids.length === 0) return result;
+    const rows = await this.db
+      .select({ id: accounts.id, accountNumber: accounts.accountNumber, name: accounts.name })
+      .from(accounts)
+      .where(inArray(accounts.id, ids));
+    for (const r of rows) result.set(r.id, { accountNumber: r.accountNumber, name: r.name });
+    return result;
   }
 
   /**

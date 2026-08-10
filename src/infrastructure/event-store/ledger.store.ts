@@ -29,6 +29,20 @@ export interface InsertTransactionInput {
   postedAt: Date;
 }
 
+export interface AuditRow {
+  seq: number;
+  direction: 'debit' | 'credit';
+  amount: string;
+  currency: string;
+  createdAt: Date;
+  transactionId: string;
+  type: string;
+  reference: string | null;
+  description: string | null;
+  postedAt: Date;
+  counterpartyIds: string[];
+}
+
 /**
  * The event store. Writes are append-only and always executed inside the caller's
  * transaction (a SqlExecutor); reads run directly on the pool. Never exposes an
@@ -125,6 +139,31 @@ export class LedgerStore {
         WHERE account_id = $1
           AND ($2::timestamptz IS NULL OR created_at <= $2)
         ORDER BY seq ASC`,
+      [accountId, asOf ?? null],
+    );
+    return rows;
+  }
+
+  /**
+   * Audit trail rows for an account: each event joined to its transaction, with
+   * the sibling (counterparty) account ids of the same transaction.
+   */
+  async rawAudit(accountId: string, asOf?: Date): Promise<AuditRow[]> {
+    const { rows } = await this.pool.query<AuditRow>(
+      `SELECT e.seq, e.direction, e.amount, e.currency, e.created_at AS "createdAt",
+              t.id AS "transactionId", t.type, t.reference, t.description,
+              t.posted_at AS "postedAt",
+              COALESCE((
+                SELECT array_agg(e2.account_id::text)
+                  FROM entries e2
+                 WHERE e2.transaction_id = e.transaction_id
+                   AND e2.account_id <> e.account_id
+              ), ARRAY[]::text[]) AS "counterpartyIds"
+         FROM entries e
+         JOIN transactions t ON t.id = e.transaction_id
+        WHERE e.account_id = $1
+          AND ($2::timestamptz IS NULL OR e.created_at <= $2)
+        ORDER BY e.seq ASC`,
       [accountId, asOf ?? null],
     );
     return rows;
