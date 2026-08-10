@@ -11,7 +11,7 @@ export interface SqlExecutor {
   query<R extends QueryResultRow = QueryResultRow>(
     sql: string,
     params?: unknown[],
-  ): Promise<{ rows: R[] }>;
+  ): Promise<{ rows: R[]; rowCount: number | null }>;
 }
 
 /**
@@ -27,7 +27,7 @@ export class PostgresTransactionRunner {
     const client = await this.pool.connect();
     const tx: SqlExecutor = {
       query: <R extends QueryResultRow = QueryResultRow>(sql: string, params?: unknown[]) =>
-        client.query<R>(sql, params).then((res) => ({ rows: res.rows })),
+        client.query<R>(sql, params).then((res) => ({ rows: res.rows, rowCount: res.rowCount })),
     };
     try {
       await client.query('BEGIN ISOLATION LEVEL READ COMMITTED');

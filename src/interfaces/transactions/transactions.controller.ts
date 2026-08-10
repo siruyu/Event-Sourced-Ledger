@@ -43,4 +43,12 @@ export class TransactionsController {
   get(@Param('id', new ZodValidationPipe(uuidSchema)) id: string): Promise<TransactionView> {
     return this.transactions.get(id);
   }
+
+  @Post('transactions/:id/void')
+  @HttpCode(HttpStatus.CREATED)
+  voidTransaction(
+    @Param('id', new ZodValidationPipe(uuidSchema)) id: string,
+  ): Promise<TransactionView> {
+    return this.transactions.voidTransaction(id);
+  }
 }

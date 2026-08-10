@@ -6,16 +6,17 @@ import {
   buildDeposit,
   buildTransfer,
   buildWithdrawal,
-  type DoubleEntryTransaction,
+  DoubleEntryTransaction,
 } from '@/domain/transaction';
 import { balanceAfterEntry, assertPostAllowed } from '@/domain/invariants';
 import {
   AccountNotFoundError,
   CurrencyMismatchError,
+  InvalidTransactionError,
   NotFoundError,
 } from '@/domain/errors';
 import type { TransactionType } from '@/domain/account';
-import { PostgresTransactionRunner } from '@/infrastructure/db/tx-runner';
+import { PostgresTransactionRunner, type SqlExecutor } from '@/infrastructure/db/tx-runner';
 import { AccountRepository } from '@/infrastructure/repositories/account.repository';
 import { LedgerStore, type AppendEntryInput } from '@/infrastructure/event-store/ledger.store';
 import { InternalAccountsService } from '@/application/internal-accounts.service';
@@ -137,36 +138,7 @@ export class TransactionsService {
 
     try {
       await this.runner.withTransaction(async (sql) => {
-        const accountIds = [...new Set(domainTx.legs.map((l) => l.accountId))];
-
-        // Deterministic (id-sorted) lock acquisition — deadlock-free and the
-        // serialization point that prevents lost updates.
-        const locked = await this.accounts.lockForUpdate(sql, accountIds);
-        if (locked.length !== accountIds.length) {
-          const found = new Set(locked.map((a) => a.id));
-          const missing = accountIds.find((id) => !found.has(id));
-          throw new AccountNotFoundError(`Account not found: ${missing}`);
-        }
-        const byId = new Map(locked.map((a) => [a.id, a]));
-
-        for (const leg of domainTx.legs) {
-          const account = byId.get(leg.accountId);
-          if (account && account.currency !== leg.currency) {
-            throw new CurrencyMismatchError(
-              `Entry currency ${leg.currency} does not match account currency ${account.currency}`,
-            );
-          }
-        }
-
-        const balances = await this.store.balancesFor(accountIds, undefined, sql);
-        const entrySeq = new Map<string, number>();
-        for (const leg of domainTx.legs) {
-          const account = byId.get(leg.accountId)!;
-          const current = Money.fromDecimalString(balances.get(leg.accountId) ?? '0');
-          const after = balanceAfterEntry(current, account.normalSide, leg.direction, leg.amount);
-          assertPostAllowed(account.status, after, Money.fromDecimalString(account.overdraftLimit));
-          entrySeq.set(leg.accountId, account.currentSequence + 1);
-        }
+        const entrySeq = await this.collectEntrySeqs(sql, domainTx);
 
         await this.store.insertTransaction(sql, {
           id: txId,
@@ -232,6 +204,109 @@ export class TransactionsService {
     }
 
     return txId;
+  }
+
+  /**
+   * Voids a posted transaction by appending a compensating (reversal)
+   * transaction that mirrors every leg with its direction flipped, then marks
+   * the original void. Everything happens atomically and the event log stays
+   * append-only — events are never deleted.
+   */
+  async voidTransaction(transactionId: string): Promise<TransactionView> {
+    const original = await this.store.findTransaction(transactionId);
+    if (!original) throw new NotFoundError('Transaction not found');
+    if (original.status === 'void') {
+      throw new InvalidTransactionError('Transaction is already void');
+    }
+
+    const originalEntries = await this.store.entriesForTransaction(transactionId);
+    const reversalLegs = originalEntries.map((e) => ({
+      accountId: e.accountId,
+      direction: (e.direction === 'debit' ? 'credit' : 'debit') as 'debit' | 'credit',
+      amount: Money.fromDecimalString(e.amount),
+      currency: e.currency,
+    }));
+    const reversalTx = DoubleEntryTransaction.of(reversalLegs);
+
+    const reversalId = randomUUID();
+    await this.runner.withTransaction(async (sql) => {
+      const entrySeq = await this.collectEntrySeqs(sql, reversalTx);
+
+      await this.store.insertTransaction(sql, {
+        id: reversalId,
+        type: 'reversal',
+        reference: null,
+        description: `Reversal of ${transactionId}`,
+        metadata: { originalTransactionId: transactionId },
+        postedAt: new Date(),
+      });
+
+      const entries: AppendEntryInput[] = reversalTx.legs.map((leg) => ({
+        transactionId: reversalId,
+        accountId: leg.accountId,
+        seq: entrySeq.get(leg.accountId) as number,
+        direction: leg.direction,
+        amount: leg.amount.toDecimalString(),
+        currency: leg.currency,
+      }));
+      await this.store.appendEntries(sql, entries);
+      await this.accounts.bumpSequences(
+        sql,
+        [...entrySeq].map(([id, seq]) => ({ id, seq })),
+      );
+
+      const marked = await this.store.markTransactionVoid(sql, transactionId);
+      if (!marked) {
+        throw new InvalidTransactionError('Transaction was already voided');
+      }
+    });
+
+    this.logger.log(
+      { transactionId: reversalId, originalTransactionId: transactionId, type: 'reversal' },
+      'transaction voided via compensating reversal',
+    );
+    return this.view(reversalId);
+  }
+
+  /**
+   * Serialization + invariant gate shared by every write path. Acquires row
+   * locks in deterministic (id-sorted) order (deadlock-free, no lost updates),
+   * validates currency and balance invariants under lock, and returns the
+   * per-account sequence number each entry must receive.
+   */
+  private async collectEntrySeqs(
+    sql: SqlExecutor,
+    domainTx: DoubleEntryTransaction,
+  ): Promise<Map<string, number>> {
+    const accountIds = [...new Set(domainTx.legs.map((l) => l.accountId))];
+
+    const locked = await this.accounts.lockForUpdate(sql, accountIds);
+    if (locked.length !== accountIds.length) {
+      const found = new Set(locked.map((a) => a.id));
+      const missing = accountIds.find((id) => !found.has(id));
+      throw new AccountNotFoundError(`Account not found: ${missing}`);
+    }
+    const byId = new Map(locked.map((a) => [a.id, a]));
+
+    for (const leg of domainTx.legs) {
+      const account = byId.get(leg.accountId)!;
+      if (account.currency !== leg.currency) {
+        throw new CurrencyMismatchError(
+          `Entry currency ${leg.currency} does not match account currency ${account.currency}`,
+        );
+      }
+    }
+
+    const balances = await this.store.balancesFor(accountIds, undefined, sql);
+    const entrySeq = new Map<string, number>();
+    for (const leg of domainTx.legs) {
+      const account = byId.get(leg.accountId)!;
+      const current = Money.fromDecimalString(balances.get(leg.accountId) ?? '0');
+      const after = balanceAfterEntry(current, account.normalSide, leg.direction, leg.amount);
+      assertPostAllowed(account.status, after, Money.fromDecimalString(account.overdraftLimit));
+      entrySeq.set(leg.accountId, account.currentSequence + 1);
+    }
+    return entrySeq;
   }
 
   private async view(id: string): Promise<TransactionView> {

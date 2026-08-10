@@ -127,6 +127,18 @@ export class LedgerStore {
   }
 
   /**
+   * Marks a posted transaction void (idempotent-guard: only transitions a
+   * posted row). Returns whether the transition actually happened.
+   */
+  async markTransactionVoid(tx: SqlExecutor, id: string): Promise<boolean> {
+    const { rowCount } = await tx.query(
+      `UPDATE transactions SET status = 'void' WHERE id = $1 AND status = 'posted'`,
+      [id],
+    );
+    return (rowCount ?? 0) > 0;
+  }
+
+  /**
    * Replays an account's history in sequence order, optionally truncated to an
    * as-of timestamp. Point-in-time consistency is safe because both legs of a
    * transaction share the same posted_at (and the same write transaction).
