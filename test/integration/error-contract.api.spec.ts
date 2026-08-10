@@ -62,18 +62,22 @@ describe('Error contract [T-11]', () => {
     expect(res.body.error.code).toBe('INSUFFICIENT_FUNDS');
   });
 
-  it('maps a duplicate idempotency reference to 409 DUPLICATE_REFERENCE', async () => {
+  it('resolves a duplicate idempotency reference to the original transaction (no error, no double charge)', async () => {
     const acc = await createAccount();
-    await request(http())
+    const first = await request(http())
       .post(`/api/v1/accounts/${acc.id}/deposits`)
       .send({ amount: '50.00', reference: 'payroll-2026-01' })
       .expect(201);
 
-    const res = await request(http())
+    const second = await request(http())
       .post(`/api/v1/accounts/${acc.id}/deposits`)
       .send({ amount: '50.00', reference: 'payroll-2026-01' })
-      .expect(409);
-    expect(res.body.error.code).toBe('DUPLICATE_REFERENCE');
+      .expect(201);
+
+    expect(second.body.id).toBe(first.body.id);
+
+    const balance = await request(http()).get(`/api/v1/accounts/${acc.id}/balance`).expect(200);
+    expect(balance.body.balance).toBe('50.0000');
   });
 
   it('maps malformed request bodies to 400 VALIDATION_ERROR with details', async () => {
