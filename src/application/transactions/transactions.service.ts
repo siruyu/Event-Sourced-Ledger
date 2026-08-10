@@ -1,4 +1,5 @@
 import { Injectable } from '@nestjs/common';
+import { Logger } from 'nestjs-pino';
 import { randomUUID } from 'crypto';
 import { Money } from '@/domain/money';
 import {
@@ -54,6 +55,7 @@ export class TransactionsService {
     private readonly accounts: AccountRepository,
     private readonly store: LedgerStore,
     private readonly internal: InternalAccountsService,
+    private readonly logger: Logger,
   ) {}
 
   async deposit(accountId: string, dto: MovementDto): Promise<TransactionView> {
@@ -187,6 +189,17 @@ export class TransactionsService {
         [...entrySeq].map(([id, seq]) => ({ id, seq })),
       );
     });
+
+    this.logger.log(
+      {
+        transactionId: txId,
+        type: opts.type,
+        amount: domainTx.debitsTotal().toDecimalString(),
+        accountIds: domainTx.legs.map((l) => l.accountId),
+        reference: opts.reference ?? null,
+      },
+      'transaction posted',
+    );
 
     return txId;
   }
