@@ -78,7 +78,7 @@ append-only log.
 | **Docs** | **OpenAPI 3 / Swagger** (NestJS swagger module) | Machine-readable, live-updating API contract. | — |
 | **Observability** | **pino** structured logging + request IDs; optional Prometheus metrics | JSON logs, correlation IDs across the request lifecycle. | — |
 | **Containers** | **Docker Compose** | One command to run Postgres (+ API + UI). | — |
-| **UI (stretch)** | **React + Vite + Tailwind CSS + TanStack Query + React Router** | Standard, productive stack for the observation/control dashboard. | — |
+| **UI** | **React + Vite + Tailwind CSS + TanStack Query + React Router** | Standard, productive stack for the observation/control dashboard. `web/` (T-23). | — |
 | **CI** | **GitHub Actions** | Lint, typecheck, unit + integration tests on every push. | — |
 
 ---
@@ -238,11 +238,17 @@ p03/
 │       ├── point-in-time.spec.ts
 │       └── audit.spec.ts
 │
-└── web/                           # stretch — React UI
+└── web/                           # React + Vite + Tailwind dashboard (implemented — T-23)
     ├── src/
-    │   ├── app/  components/  features/  lib/
+    │   ├── api/                   # fetch client + typed endpoints
+    │   ├── components/            # ui primitives, layout, form modals
+    │   ├── lib/                   # amount/date formatting
+    │   └── pages/                 # Accounts list + Account detail/audit timeline
     ├── package.json
-    └── vite.config.ts
+    ├── vite.config.ts             # dev proxy /api/v1 → localhost:3000
+    ├── tailwind.config.js
+    ├── Dockerfile + nginx.conf    # static build proxying the API
+    └── nginx.conf
 ```
 
 **Layer rules**

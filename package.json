@@ -9,8 +9,8 @@
   },
   "scripts": {
     "build": "nest build",
-    "start": "node dist/main.js",
-    "start:prod": "node dist/main.js",
+    "start": "node dist/src/main.js",
+    "start:prod": "node dist/src/main.js",
     "dev": "nest start --watch",
     "typecheck": "tsc --noEmit -p tsconfig.json",
     "lint": "eslint .",

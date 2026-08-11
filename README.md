@@ -26,7 +26,16 @@ Health check: `GET /api/v1/health` → `{ "status": "ok", "timestamp": "..." }`
 With Docker (optional):
 
 ```bash
-docker compose up --build
+docker compose up --build        # Postgres + API + web UI
+```
+
+Web UI (dashboard) at http://localhost:5173 (dev) or http://localhost:5173 via Docker
+(nginx build). To run the dashboard in dev against a local API:
+
+```bash
+cd web
+npm install
+npm run dev                      # http://localhost:5173, proxies /api/v1 → localhost:3000
 ```
 
 ## Testing

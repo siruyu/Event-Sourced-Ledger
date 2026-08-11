@@ -501,11 +501,18 @@ accounts with live derived balances, create accounts, post deposits and transfer
 each account's audit trail as a visual event timeline.
 
 **Acceptance criteria**
-- [ ] Dashboard lists accounts with current balances; selecting one shows details + history
-- [ ] Create account, deposit, and transfer forms work against the API (incl. error surfacing)
-- [ ] Audit trail rendered as a timeline with counterparty and running balance
-- [ ] Point-in-time balance picker on the audit screen
-- [ ] Responsive; uses the API's amount-as-string convention
+- [x] Dashboard lists accounts with current balances; selecting one shows details + history
+- [x] Create account, deposit, and transfer forms work against the API (incl. error surfacing)
+- [x] Audit trail rendered as a timeline with counterparty and running balance
+- [x] Point-in-time balance picker on the audit screen
+- [x] Responsive; uses the API's amount-as-string convention
+
+> **Implementation notes:** `web/` is a React 18 + Vite + Tailwind (v3) app using
+> TanStack Query, React Router, and `lucide-react` icons. It runs against the API via a dev
+> proxy (`/api/v1` → `localhost:3000`) and ships a containerized build (nginx) in
+> docker-compose. Designed per `ui-ux-pro-max` guidance: semantic tokens, tabular figures
+> for money, visible focus states, ≥44px touch targets, per-field form errors, and
+> loading/empty/error states.
 
 ---
 

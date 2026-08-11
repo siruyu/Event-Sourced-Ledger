@@ -11,6 +11,7 @@ export default tseslint.config(
       'drizzle.config.ts',
       'jest.config.js',
       'eslint.config.mjs',
+      'web/**',
     ],
   },
   eslint.configs.recommended,
