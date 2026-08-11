@@ -573,10 +573,18 @@ the `accounts` table (and status history) as a projection. This is the "purest" 
 extension and rounds out the learning goals.
 
 **Acceptance criteria**
-- [ ] Account lifecycle actions append events; the `accounts` row is rebuilt by replay
-- [ ] Status history queryable (when was it frozen, and why)
-- [ ] Old events remain replayable (version field honored)
-- [ ] Documented trade-off: two streams (`account_events` + `entries`) vs. a single stream
+- [x] Account lifecycle actions append events; the `accounts` row is rebuilt by replay
+- [x] Status history queryable (when was it frozen, and why)
+- [x] Old events remain replayable (version field honored)
+- [x] Documented trade-off: two streams (`account_events` + `entries`) vs. a single stream
+
+> **Implementation notes:** new `account_events` append-only table (per-account seq,
+> `UNIQUE(account_id, seq)`, jsonb payload, integer `version`). Account creation appends
+> `account_opened`; freeze/reactivate/close append the matching event inside the same
+> transaction that updates the `accounts` row (the row is the denormalized projection).
+> `GET /accounts/:id/status-history` rebuilds the history by replaying the stream, and
+> `AccountEventService.projectAccount` proves the stored row is reproducible from events.
+> `limit_changed` is a reserved event type for the (future) limit-change endpoint.
 
 ---
 

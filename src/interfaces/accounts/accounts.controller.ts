@@ -11,6 +11,7 @@ import {
 } from '@nestjs/swagger';
 import { AccountsService } from '@/application/accounts/accounts.service';
 import type { AccountView } from '@/application/accounts/account-view';
+import { AccountEventService, type StatusHistoryItem } from '@/application/account-events/account-event.service';
 import { AuditService, type AuditView } from '@/application/audit/audit.service';
 import { ZodValidationPipe } from '@/common/validation/zod-validation.pipe';
 import { asOfSchema, uuidSchema } from '@/common/validation/schemas';
@@ -37,6 +38,7 @@ export class AccountsController {
   constructor(
     private readonly accounts: AccountsService,
     private readonly audit: AuditService,
+    private readonly accountEvents: AccountEventService,
   ) {}
 
   @Post()
@@ -107,6 +109,17 @@ export class AccountsController {
   ): Promise<AuditView> {
     const afterSeq = this.afterSeqFromCursor(query.cursor);
     return this.audit.get(id, query.as_of, afterSeq, query.limit ?? 20);
+  }
+
+  @Get(':id/status-history')
+  @ApiOperation({ summary: 'Rebuild the account status history from its event stream' })
+  @ApiParam({ name: 'id', type: 'string', format: 'uuid' })
+  @ApiResponse({ status: 200, description: 'Status history (projected from account_events)' })
+  @ApiResponse({ status: 404, description: 'Account not found', schema: { $ref: apiErrorRef } })
+  statusHistory(
+    @Param('id', new ZodValidationPipe(uuidSchema)) id: string,
+  ): Promise<StatusHistoryItem[]> {
+    return this.accountEvents.statusHistory(id);
   }
 
   @Get(':id')

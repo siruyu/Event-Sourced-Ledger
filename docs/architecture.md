@@ -127,9 +127,16 @@ The `entries` table **is** the event log. We deliberately did not create a separ
 - Every event in this system *is* a double-entry leg with exactly the fields above — there is
   no payload-only event that also needs a projection row.
 - Writing one row per leg keeps replay trivial and per-account sequencing natural.
-- If the product later grows payload-heavy domain events (e.g., `account_opened`,
-  `overdraft_waiver`), the safe evolution is to add an `account_events` stream for
-  *non-balance* events (ticket T-26) while `entries` remains the money log.
+- Account *lifecycle* events (T-26) live in a separate `account_events` stream
+  (`account_opened`, `account_frozen`, `account_closed`, `limit_changed`) with per-account
+  seqs and a `version` field. The `accounts` row is the denormalized projection of that
+  stream and can be rebuilt by replaying it (`GET /accounts/:id/status-history`).
+- **Documented trade-off (two streams vs. one):** keeping `entries` (money legs) and
+  `account_events` (lifecycle) separate means a money movement never carries lifecycle
+  payloads and a status change never touches the double-entry log — each stream has a single,
+  simple projection (balance vs. account state). The cost is two streams to replay for a
+  complete aggregate picture. A single unified stream would interleave both kinds of events
+  but complicate per-account money sequencing and the double-entry invariant checks.
 
 ---
 
@@ -353,20 +360,41 @@ Snapshot frequency driven by `SNAPSHOT_INTERVAL_EVENTS` (every N events) and
 best-effort after each committed money movement via `SnapshotService` and is never allowed
 to fail the transaction.
 
+### 7.4b `account_events` — the account lifecycle stream (T-26)
+
+Append-only lifecycle events. **Application code only ever INSERTs here.**
+
+| Column | Type | Notes |
+|---|---|---|
+| `id` | `bigint` IDENTITY PK | |
+| `account_id` | `uuid` NOT NULL FK → `accounts.id` | |
+| `seq` | `bigint` NOT NULL | Per-account sequence (UNIQUE with account_id) |
+| `type` | `enum(account_event_type)` NOT NULL | `account_opened` · `account_frozen` · `account_reactivated` · `account_closed` · `limit_changed` |
+| `payload` | `jsonb` NOT NULL DEFAULT `{}` | `{ reason?, from?, to?, overdraftLimit?, … }` |
+| `version` | `integer` NOT NULL DEFAULT `1` | Payload version; old events stay replayable after schema evolution |
+| `created_at` | `timestamptz` NOT NULL DEFAULT `now()` | |
+
+`UNIQUE (account_id, seq)`. The `accounts` row is a projection rebuilt by replaying this
+stream (`GET /accounts/:id/status-history`).
+
 ### 7.5 Entity relationships (plain English)
 
 ```
 accounts 1 ──── N entries  ──── N ──── 1 transactions
+   └─────── 1 ──── N account_events  (lifecycle stream — T-26)
    └─────── 1 ──── N entries  (per-account stream, ordered by seq)
-   └─────── 1 ──── N snapshots (stretch)
+   └─────── 1 ──── N snapshots
 ```
 
-- **An account** has many **entries** (its history stream) and many **snapshots**.
+- **An account** has many **entries** (its money-history stream), many **account_events**
+  (its lifecycle stream: opened/frozen/reactivated/closed, each with a per-account `seq`,
+  jsonb `payload`, and integer `version`), and many **snapshots**.
 - **A transaction** has exactly ≥2 **entries** (its legs), spanning ≥1 accounts. A transfer
   has exactly 2 legs across 2 accounts; a deposit has 2 legs on the same account (the
   customer's account and the bank's internal cash/equity account for that currency — each
   currency gets its own vault account, e.g. `LE-INTERNAL-CASH-EUR`).
-- Deleting an account or transaction is **forbidden**; closing is done via `status`.
+- Deleting an account or transaction is **forbidden**; closing is done via `status`, and the
+  transition is recorded in `account_events`.
 
 ---
 
@@ -452,6 +480,7 @@ Copy `.env.example` → `.env`. Nothing secret is committed.
 | `transaction_type` | `deposit`, `withdrawal`, `transfer`, `fee`, `reversal` |
 | `transaction_status` | `posted`, `void` |
 | `entry_direction` | `debit`, `credit` |
+| `account_event_type` | `account_opened`, `account_frozen`, `account_reactivated`, `account_closed`, `limit_changed` |
 
 Events carry a `version` field (integer, defaults to 1) so future payload changes are
 migration-friendly — old events remain replayable after schema evolution.

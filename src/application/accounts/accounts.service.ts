@@ -8,6 +8,7 @@ import type { NewAccount } from '../../../db/schema';
 import { PostgresTransactionRunner } from '@/infrastructure/db/tx-runner';
 import { AccountRepository } from '@/infrastructure/repositories/account.repository';
 import { LedgerStore } from '@/infrastructure/event-store/ledger.store';
+import { AccountEventStore } from '@/application/account-events/account-event.store';
 import type { CreateAccountDto } from '@/interfaces/accounts/accounts.dto';
 import { toAccountView, type AccountView } from './account-view';
 
@@ -17,6 +18,7 @@ export class AccountsService {
     private readonly runner: PostgresTransactionRunner,
     private readonly accounts: AccountRepository,
     private readonly store: LedgerStore,
+    private readonly events: AccountEventStore,
   ) {}
 
   async create(dto: CreateAccountDto): Promise<AccountView> {
@@ -32,7 +34,18 @@ export class AccountsService {
       overdraftLimit: dto.overdraftLimit,
       status: 'active',
     };
-    await this.runner.withTransaction((tx) => this.accounts.insert(tx, account));
+    await this.runner.withTransaction(async (tx) => {
+      await this.accounts.insert(tx, account);
+      // The lifecycle is book-ended by an account_opened event so the
+      // aggregate is fully replayable (T-26).
+      await this.events.appendWithin(tx, id, 'account_opened', {
+        name: account.name,
+        type: account.type,
+        normalSide,
+        currency: account.currency,
+        overdraftLimit: account.overdraftLimit,
+      });
+    });
     return this.get(id);
   }
 
@@ -120,6 +133,19 @@ export class AccountsService {
         'UPDATE accounts SET status = $2, metadata = $3, updated_at = now() WHERE id = $1',
         [id, status, JSON.stringify({ ...metadata, statusHistory: nextHistory })],
       );
+
+      // Mirror the lifecycle change onto the append-only aggregate stream.
+      const eventType =
+        status === 'closed'
+          ? ('account_closed' as const)
+          : status === 'frozen'
+            ? ('account_frozen' as const)
+            : ('account_reactivated' as const);
+      await this.events.appendWithin(sql, id, eventType, {
+        from: current.status,
+        to: status,
+        reason: 'Account status changed via API',
+      });
     });
 
     return this.get(id);

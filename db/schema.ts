@@ -3,6 +3,7 @@ import {
   char,
   check,
   index,
+  integer,
   jsonb,
   numeric,
   pgEnum,
@@ -38,6 +39,14 @@ export const transactionType = pgEnum('transaction_type', [
 export const transactionStatus = pgEnum('transaction_status', ['posted', 'void']);
 
 export const entryDirection = pgEnum('entry_direction', ['debit', 'credit']);
+
+export const accountEventType = pgEnum('account_event_type', [
+  'account_opened',
+  'account_frozen',
+  'account_reactivated',
+  'account_closed',
+  'limit_changed',
+]);
 
 /**
  * Operational metadata for an account.
@@ -125,6 +134,31 @@ export const snapshots = pgTable(
   (t) => [uniqueIndex('snapshots_account_seq_unique').on(t.accountId, t.seq)],
 );
 
+/**
+ * Append-only account-aggregate event stream (T-26): lifecycle events such as
+ * `account_opened` / `account_frozen` / `account_closed`. The `accounts` row is
+ * a projection that can be rebuilt by replaying this stream. Distinct from the
+ * `entries` money log (see architecture.md §4.5 for the two-stream trade-off).
+ */
+export const accountEvents = pgTable(
+  'account_events',
+  {
+    id: bigint('id', { mode: 'number' }).primaryKey().generatedAlwaysAsIdentity(),
+    accountId: uuid('account_id')
+      .notNull()
+      .references(() => accounts.id),
+    seq: bigint('seq', { mode: 'number' }).notNull(),
+    type: accountEventType('type').notNull(),
+    payload: jsonb('payload').notNull().default(sql`'{}'::jsonb`),
+    version: integer('version').notNull().default(1),
+    createdAt: timestamp('created_at', { withTimezone: true }).notNull().defaultNow(),
+  },
+  (t) => [
+    uniqueIndex('account_events_account_seq_unique').on(t.accountId, t.seq),
+    index('account_events_account_seq_idx').on(t.accountId, t.seq),
+  ],
+);
+
 export type Account = typeof accounts.$inferSelect;
 export type NewAccount = typeof accounts.$inferInsert;
 export type Transaction = typeof transactions.$inferSelect;
@@ -133,3 +167,5 @@ export type LedgerEntry = typeof entries.$inferSelect;
 export type NewLedgerEntry = typeof entries.$inferInsert;
 export type Snapshot = typeof snapshots.$inferSelect;
 export type NewSnapshot = typeof snapshots.$inferInsert;
+export type AccountEvent = typeof accountEvents.$inferSelect;
+export type NewAccountEvent = typeof accountEvents.$inferInsert;
