@@ -152,18 +152,51 @@ export class LedgerStore {
   }
 
   /**
+   * Derived balance of a single account including only entries with
+   * `seq <= upToSeq` (optionally also bounded by `asOf`). Used to seed the
+   * running balance for keyset-paginated audit reads without replaying the
+   * account's full history on every page.
+   */
+  async balanceUpToSeq(
+    accountId: string,
+    upToSeq: number,
+    asOf?: Date,
+  ): Promise<string> {
+    const { rows } = await this.pool.query<{ balance: string }>(
+      `SELECT COALESCE(
+                SUM(CASE
+                      WHEN (e.direction = 'debit'  AND a.normal_side = 'debit')
+                        OR (e.direction = 'credit' AND a.normal_side = 'credit')
+                      THEN e.amount
+                      ELSE -e.amount
+                    END),
+                0
+              )::numeric(19,4) AS balance
+         FROM entries e
+         JOIN accounts a ON a.id = e.account_id
+         JOIN transactions t ON t.id = e.transaction_id
+        WHERE e.account_id = $1
+          AND e.seq <= $2
+          AND ($3::timestamptz IS NULL OR t.posted_at <= $3)`,
+      [accountId, upToSeq, asOf ?? null],
+    );
+    return rows[0]?.balance ?? '0';
+  }
+
+  /**
    * Replays an account's history in sequence order, optionally truncated to an
    * as-of timestamp. Point-in-time consistency is safe because both legs of a
    * transaction share the same posted_at (and the same write transaction).
    */
   async replay(accountId: string, asOf?: Date): Promise<LedgerEntryRow[]> {
     const { rows } = await this.pool.query<LedgerEntryRow>(
-      `SELECT id, transaction_id AS "transactionId", account_id AS "accountId",
-              seq, direction, amount, currency, created_at AS "createdAt"
-         FROM entries
-        WHERE account_id = $1
-          AND ($2::timestamptz IS NULL OR created_at <= $2)
-        ORDER BY seq ASC`,
+      `SELECT e.id, e.transaction_id AS "transactionId", e.account_id AS "accountId",
+              e.seq, e.direction, e.amount, e.currency, e.created_at AS "createdAt"
+         FROM entries e
+         JOIN transactions t ON t.id = e.transaction_id
+        WHERE e.account_id = $1
+          AND ($2::timestamptz IS NULL OR t.posted_at <= $2)
+        ORDER BY e.seq ASC`,
       [accountId, asOf ?? null],
     );
     return rows;
@@ -193,7 +226,7 @@ export class LedgerStore {
          FROM entries e
          JOIN transactions t ON t.id = e.transaction_id
         WHERE e.account_id = $1
-          AND ($2::timestamptz IS NULL OR e.created_at <= $2)
+          AND ($2::timestamptz IS NULL OR t.posted_at <= $2)
           AND ($3::bigint IS NULL OR e.seq > $3)
         ORDER BY e.seq ASC
         LIMIT $4`,
@@ -202,7 +235,7 @@ export class LedgerStore {
     return rows;
   }
 
-  /** Keyset-paginated list of an account's own transaction legs, newest-first. */
+  /** Keyset-paginated list of an account's own transaction legs, oldest-first (ascending seq). */
   async paginateAccountTransactions(
     accountId: string,
     afterSeq: number | null,
@@ -239,6 +272,7 @@ export class LedgerStore {
     if (accountIds.length === 0) return result;
 
     const q = this.resolveQueryable(queryable);
+    const asOfBound = asOf !== undefined;
     const { rows } = await q.query<{ accountId: string; balance: string }>(
       `SELECT e.account_id AS "accountId",
               COALESCE(
@@ -252,10 +286,11 @@ export class LedgerStore {
               )::numeric(19,4) AS balance
          FROM entries e
          JOIN accounts a ON a.id = e.account_id
+         ${asOfBound ? 'JOIN transactions t ON t.id = e.transaction_id' : ''}
         WHERE e.account_id = ANY($1::uuid[])
-          AND ($2::timestamptz IS NULL OR e.created_at <= $2)
+          ${asOfBound ? 'AND t.posted_at <= $2' : ''}
         GROUP BY e.account_id`,
-      [accountIds, asOf ?? null],
+      asOfBound ? [accountIds, asOf] : [accountIds],
     );
 
     for (const r of rows) {

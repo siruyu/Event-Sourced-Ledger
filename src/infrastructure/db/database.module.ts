@@ -1,5 +1,5 @@
 import { Global, Module } from '@nestjs/common';
-import type { Provider } from '@nestjs/common';
+import type { OnModuleDestroy, Provider } from '@nestjs/common';
 import { ConfigService } from '@nestjs/config';
 import { Pool, type PoolConfig } from 'pg';
 import { drizzle } from 'drizzle-orm/node-postgres';
@@ -25,6 +25,20 @@ const poolProvider: Provider = {
   },
 };
 
+/**
+ * Closes the shared pg Pool when the Nest application shuts down (including
+ * `app.close()` in tests), so Jest can exit without lingering handles.
+ */
+const poolShutdownProvider: Provider = {
+  provide: 'PG_POOL_SHUTDOWN',
+  inject: [PG_POOL],
+  useFactory: (pool: Pool): OnModuleDestroy => ({
+    async onModuleDestroy(): Promise<void> {
+      await pool.end();
+    },
+  }),
+};
+
 const drizzleProvider: Provider = {
   provide: DRIZZLE_DB,
   inject: [PG_POOL],
@@ -36,6 +50,7 @@ const drizzleProvider: Provider = {
   providers: [
     poolProvider,
     drizzleProvider,
+    poolShutdownProvider,
     PostgresTransactionRunner,
     AccountRepository,
     LedgerStore,

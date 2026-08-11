@@ -228,11 +228,11 @@ p03/
 │       └── health/                # health.controller
 │
 ├── test/
-│   ├── unit/                      # domain tests (Vitest)
+│   ├── unit/                      # domain tests (Jest, no DB)
 │   │   ├── money.spec.ts
 │   │   ├── transaction.spec.ts
 │   │   └── invariants.spec.ts
-│   └── integration/               # API + real Postgres (Testcontainers)
+│   └── integration/               # API + real Postgres (TEST_DATABASE_URL harness)
 │       ├── transfer.api.spec.ts
 │       ├── concurrency.spec.ts    # the "no lost updates" stress test
 │       ├── point-in-time.spec.ts
@@ -318,7 +318,8 @@ One immutable event per ledger leg. **Application code only ever `INSERT`s here.
 - `INDEX (transaction_id)` — join path for audit trail and transaction detail.
 - **Append-only enforcement:** the application DB role has `INSERT`+`SELECT` only on
   `entries`; `UPDATE`/`DELETE` are not granted. (Documented role separation; belt and braces
-  with code review.)
+  with code review.) A ready-to-apply provisioning script is shipped at `db/roles.sql`
+  (creates a restricted `ledger_app` role; see §13 for the ops step).
 
 **Double-entry invariant** (enforced in application logic at write time, §5.2 step 3):
 
@@ -388,6 +389,12 @@ numbers, to preserve precision.
 Core codes: `INVALID_AMOUNT`, `ACCOUNT_NOT_FOUND`, `ACCOUNT_FROZEN`, `ACCOUNT_CLOSED`,
 `INSUFFICIENT_FUNDS`, `UNBALANCED_TRANSACTION`, `INVALID_DIRECTION`, `DUPLICATE_REFERENCE`,
 `CONFLICT_SEQUENCE` (rare lock contention).
+
+> **Amount validation note:** malformed, zero, or negative amounts are rejected by the
+> Zod validation layer *before* reaching the domain, so over HTTP they surface as
+> `400 VALIDATION_ERROR` with readable `details`. The `INVALID_AMOUNT` (422) code is used
+> for domain-level rejection paths (internal use); clients should key on the 400
+> validation error for bad amounts.
 
 ---
 

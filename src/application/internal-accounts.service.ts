@@ -30,8 +30,8 @@ export class InternalAccountsService {
     }
 
     const id = randomUUID();
-    await this.runner.withTransaction((tx) =>
-      this.accounts.insert(tx, {
+    const insertedId = await this.runner.withTransaction((tx) =>
+      this.accounts.insertIfAbsent(tx, {
         id,
         accountNumber: INTERNAL_CASH_ACCOUNT_NUMBER,
         name: INTERNAL_CASH_ACCOUNT_NAME,
@@ -42,8 +42,15 @@ export class InternalAccountsService {
         status: 'active',
       }),
     );
-    this.cachedInternalId = id;
-    return id;
+
+    // A concurrent first call may have won the race (ON CONFLICT DO NOTHING
+    // returned no row): resolve to the surviving row instead of erroring.
+    const resolvedId = insertedId ?? (await this.accounts.findByAccountNumber(INTERNAL_CASH_ACCOUNT_NUMBER))?.id;
+    if (!resolvedId) {
+      throw new Error('Internal cash account could not be created or resolved');
+    }
+    this.cachedInternalId = resolvedId;
+    return resolvedId;
   }
 
   clearCache(): void {

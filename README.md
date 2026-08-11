@@ -41,6 +41,14 @@ The integration suite runs against a real PostgreSQL database
 (`TEST_DATABASE_URL`, default `postgres://postgres:postgres@localhost:5432/ledger_test`)
 and includes a concurrency stress test proving "no lost updates" under parallel transfers.
 
+## Production hardening (before exposing publicly)
+
+- **Append-only DB role** — apply `db/roles.sql` with a privileged connection to create the
+  restricted `ledger_app` role (SELECT/INSERT on `entries`, never UPDATE/DELETE), then point
+  `DATABASE_URL` at it. See `db/roles.sql` for the exact command.
+- **Auth + rate limiting** — the `API_KEYS` / `RATE_LIMIT_*` env vars (T-24) are not yet
+  implemented; keep the API on a private network until they land.
+
 ## Key API surface
 
 | Method | Path | Purpose |

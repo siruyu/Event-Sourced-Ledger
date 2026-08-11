@@ -117,10 +117,10 @@ describe('Audit trail [T-10]', () => {
     const t = new Date(Date.now() - 60_000);
 
     const d1 = await request(http()).post(`/api/v1/accounts/${a.id}/deposits`).send({ amount: '500.00' }).expect(201);
-    await pool.query('UPDATE entries SET created_at = $1 WHERE transaction_id = $2', [new Date(t.getTime() - 10_000), d1.body.id]);
+    await pool.query('UPDATE transactions SET posted_at = $1 WHERE id = $2', [new Date(t.getTime() - 10_000), d1.body.id]);
 
     const d2 = await request(http()).post(`/api/v1/accounts/${a.id}/deposits`).send({ amount: '300.00' }).expect(201);
-    await pool.query('UPDATE entries SET created_at = $1 WHERE transaction_id = $2', [t, d2.body.id]);
+    await pool.query('UPDATE transactions SET posted_at = $1 WHERE id = $2', [t, d2.body.id]);
 
     const trail = await audit(a.id, new Date(t.getTime() + 1).toISOString());
     expect(trail.items).toHaveLength(2);

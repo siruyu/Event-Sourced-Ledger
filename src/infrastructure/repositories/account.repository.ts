@@ -38,6 +38,33 @@ export class AccountRepository {
     );
   }
 
+  /**
+   * Inserts an account unless an account with the same account_number already
+   * exists, returning the inserted id (or null when a concurrent insert won).
+   * Race-safe for shared/well-known account numbers such as the internal cash
+   * account: no unique-violation can escape to the caller.
+   */
+  async insertIfAbsent(tx: SqlExecutor, input: NewAccount): Promise<string | null> {
+    const { rows } = await tx.query<{ id: string }>(
+      `INSERT INTO accounts
+         (id, account_number, name, type, normal_side, currency, overdraft_limit, status)
+       VALUES ($1, $2, $3, $4, $5, $6, $7, $8)
+       ON CONFLICT (account_number) DO NOTHING
+       RETURNING id`,
+      [
+        input.id,
+        input.accountNumber,
+        input.name,
+        input.type,
+        input.normalSide,
+        input.currency,
+        input.overdraftLimit,
+        input.status ?? 'active',
+      ],
+    );
+    return rows[0]?.id ?? null;
+  }
+
   async findById(id: string): Promise<AccountRow | null> {
     const rows = await this.db.select().from(accounts).where(eq(accounts.id, id));
     return (rows[0] as AccountRow | undefined) ?? null;

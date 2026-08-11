@@ -115,11 +115,11 @@ describe('LedgerStore (append-only event log) [T-03]', () => {
     const tx3 = randomUUID();
 
     await insertTransaction(tx1, acc, [{ direction: 'debit', amount: '500.0000' }]);
-    await pool.query('UPDATE entries SET created_at = $1 WHERE transaction_id = $2', [t1, tx1]);
+    await pool.query('UPDATE transactions SET posted_at = $1 WHERE id = $2', [t1, tx1]);
     await insertTransaction(tx2, acc, [{ direction: 'debit', amount: '300.0000' }]);
-    await pool.query('UPDATE entries SET created_at = $1 WHERE transaction_id = $2', [t2, tx2]);
+    await pool.query('UPDATE transactions SET posted_at = $1 WHERE id = $2', [t2, tx2]);
     await insertTransaction(tx3, acc, [{ direction: 'credit', amount: '100.0000' }]);
-    await pool.query('UPDATE entries SET created_at = $1 WHERE transaction_id = $2', [t3, tx3]);
+    await pool.query('UPDATE transactions SET posted_at = $1 WHERE id = $2', [t3, tx3]);
 
     expect((await store.balancesFor([acc], new Date(t1.getTime() + 1))).get(acc)).toBe('500.0000');
     expect((await store.balancesFor([acc], new Date(t2.getTime() + 1))).get(acc)).toBe('800.0000');

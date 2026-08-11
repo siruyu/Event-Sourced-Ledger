@@ -47,7 +47,7 @@ describe('Point-in-time balance [T-09]', () => {
   }
 
   async function backdateTransaction(transactionId: string, at: Date) {
-    await pool.query('UPDATE entries SET created_at = $1 WHERE transaction_id = $2', [at, transactionId]);
+    await pool.query('UPDATE transactions SET posted_at = $1 WHERE id = $2', [at, transactionId]);
   }
 
   it('returns the balance exactly as of a past timestamp', async () => {

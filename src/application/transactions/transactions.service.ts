@@ -125,6 +125,16 @@ export class TransactionsService {
     return this.view(id);
   }
 
+  /**
+   * Looks up a transaction by its client reference (idempotency key). Lets a
+   * client resolve the original transaction for a retried request.
+   */
+  async findByReference(reference: string): Promise<TransactionView> {
+    const row = await this.store.findTransactionByReference(reference);
+    if (!row) throw new NotFoundError(`No transaction found for reference "${reference}"`);
+    return this.view(row.id);
+  }
+
   async listForAccount(
     accountId: string,
     afterSeq: number | null,

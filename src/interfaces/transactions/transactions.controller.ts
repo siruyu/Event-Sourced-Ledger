@@ -14,7 +14,7 @@ import {
 } from '@/application/transactions/transactions.service';
 import type { TransactionView } from '@/application/transactions/transaction-view';
 import { ZodValidationPipe } from '@/common/validation/zod-validation.pipe';
-import { uuidSchema } from '@/common/validation/schemas';
+import { referenceParamSchema, uuidSchema } from '@/common/validation/schemas';
 import { listQuerySchema, type ListQuery } from '@/common/validation/pagination.dto';
 import { decodeCursor, type Page } from '@/common/cursor';
 import { jsonSchema, pageRefSchema } from '@/common/swagger/contract';
@@ -95,6 +95,17 @@ export class TransactionsController {
   @ApiResponse({ status: 404, description: 'Transaction not found', schema: { $ref: apiErrorRef } })
   get(@Param('id', new ZodValidationPipe(uuidSchema)) id: string): Promise<TransactionView> {
     return this.transactions.get(id);
+  }
+
+  @Get('transactions')
+  @ApiOperation({ summary: 'Get a transaction by its client reference' })
+  @ApiQuery({ name: 'reference', required: true, description: 'Client idempotency key' })
+  @ApiResponse({ status: 200, description: 'Transaction detail', schema: { $ref: transactionRef } })
+  @ApiResponse({ status: 404, description: 'No transaction for reference', schema: { $ref: apiErrorRef } })
+  getByReference(
+    @Query('reference', new ZodValidationPipe(referenceParamSchema)) reference: string,
+  ): Promise<TransactionView> {
+    return this.transactions.findByReference(reference);
   }
 
   @Post('transactions/:id/void')

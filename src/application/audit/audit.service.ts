@@ -48,11 +48,15 @@ export class AuditService {
     const account = await this.accounts.findById(accountId);
     if (!account) throw new AccountNotFoundError();
 
-    const rows = await this.store.rawAudit(accountId, asOf);
+    // Seed the running balance at the cursor instead of replaying the full
+    // history: only the requested page is read from the DB per request.
+    const base = await this.store.balanceUpToSeq(accountId, afterSeq ?? 0, asOf);
+    let running = Money.fromDecimalString(base);
+
+    const rows = await this.store.rawAudit(accountId, asOf, afterSeq, limit + 1);
     const counterpartyIds = [...new Set(rows.flatMap((r) => r.counterpartyIds))];
     const accountInfo = await this.accounts.accountInfoFor(counterpartyIds);
 
-    let running = Money.zero();
     const allEvents: AuditEventView[] = rows.map((row) => {
       const delta =
         balanceEffect(account.normalSide, row.direction) === 1
@@ -80,16 +84,19 @@ export class AuditService {
       };
     });
 
-    const from = afterSeq ?? 0;
-    const pageCandidates = allEvents.filter((e) => e.seq > from);
-    const hasMore = pageCandidates.length > limit;
-    const page = hasMore ? pageCandidates.slice(0, limit) : pageCandidates;
+    const hasMore = rows.length > limit;
+    const page = hasMore ? allEvents.slice(0, limit) : allEvents;
     const last = page[page.length - 1];
+
+    // The account-level balance is the full derived balance as of the window
+    // (independent of which page is being viewed).
+    const full = await this.store.balancesFor([accountId], asOf);
+    const balance = Money.fromDecimalString(full.get(accountId) ?? '0').toDecimalString();
 
     return {
       accountId: account.id,
       accountNumber: account.accountNumber,
-      balance: running.toDecimalString(),
+      balance,
       ...(asOf ? { asOf: asOf.toISOString() } : {}),
       items: page,
       ...(hasMore && last ? { nextCursor: encodeCursor({ seq: last.seq }) } : {}),

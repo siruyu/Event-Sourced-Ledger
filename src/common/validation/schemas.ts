@@ -60,3 +60,10 @@ export const referenceSchema = z
   .max(64)
   .regex(/^[\w.-]+$/, 'Reference may only contain letters, digits, . - _')
   .optional();
+
+/** Required reference, e.g. for `GET /transactions?reference=`. */
+export const referenceParamSchema = z
+  .string()
+  .min(1)
+  .max(64)
+  .regex(/^[\w.-]+$/, 'Reference may only contain letters, digits, . - _');

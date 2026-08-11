@@ -98,4 +98,22 @@ describe('Idempotency [T-15]', () => {
     const count = await pool.query('SELECT COUNT(*)::int AS n FROM transactions WHERE reference = $1', ['race-ref']);
     expect(count.rows[0].n).toBe(1);
   });
+
+  it('GET /transactions?reference= resolves the original transaction', async () => {
+    const acc = await createAccount();
+    const created = await request(http())
+      .post(`/api/v1/accounts/${acc.id}/deposits`)
+      .send({ amount: '75.00', reference: 'lookup-me' })
+      .expect(201);
+
+    const res = await request(http()).get(`/api/v1/transactions?reference=lookup-me`).expect(200);
+    expect(res.body.id).toBe(created.body.id);
+    expect(res.body.type).toBe('deposit');
+    expect(res.body.reference).toBe('lookup-me');
+  });
+
+  it('GET /transactions?reference= returns 404 for an unknown reference', async () => {
+    const res = await request(http()).get('/api/v1/transactions?reference=never-existed').expect(404);
+    expect(res.body.error.code).toBe('NOT_FOUND');
+  });
 });
