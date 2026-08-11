@@ -549,9 +549,15 @@ Add `GET /accounts/:id/transactions.csv` (and audit export) returning a well-for
 the account's history.
 
 **Acceptance criteria**
-- [ ] CSV columns: date, transaction id, type, direction, amount, counterparty, running balance, reference
-- [ ] Amounts are decimal strings (no scientific notation)
-- [ ] Streaming-friendly for large histories; headers correct; Excel-compatible
+- [x] CSV columns: date, transaction id, type, direction, amount, counterparty, running balance, reference
+- [x] Amounts are decimal strings (no scientific notation)
+- [x] Streaming-friendly for large histories; headers correct; Excel-compatible
+
+> **Implementation notes:** `GET /accounts/:id/transactions.csv` and
+> `GET /accounts/:id/audit.csv` stream rows in bounded pages (500/page) directly to the
+> response with a running balance folded from a snapshot base — large histories never load
+> fully into memory. UTF-8 BOM + CRLF line endings for Excel; RFC-4180-style escaping;
+> `as_of` trims the window. Optional `reference`/description carry commas safely.
 
 ---
 

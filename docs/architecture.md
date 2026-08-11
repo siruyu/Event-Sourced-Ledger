@@ -386,6 +386,8 @@ numbers, to preserve precision.
 | `POST` | `/accounts/:id/deposits` | Post a deposit (balanced double-entry) |
 | `POST` | `/accounts/:id/withdrawals` | Post a withdrawal |
 | `GET` | `/accounts/:id/audit?as_of=` | Full audit trail / balance reconstruction |
+| `GET` | `/accounts/:id/transactions.csv` | CSV export of an account's transactions (streaming) |
+| `GET` | `/accounts/:id/audit.csv` | CSV export of the audit trail (streaming) |
 | `POST` | `/transfers` | Atomic transfer between two accounts (same-currency, or cross-currency with `fx_rate`) |
 | `GET` | `/transactions/:id` | Transaction detail incl. all legs |
 | `POST` | `/transactions/:id/void` | Should-have: void with compensating entry |

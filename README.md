@@ -72,6 +72,8 @@ and includes a concurrency stress test proving "no lost updates" under parallel 
 | `POST` | `/accounts/:id/withdrawals` | Withdraw |
 | `POST` | `/transfers` | Atomic transfer |
 | `GET` | `/accounts/:id/audit?as_of=` | Audit trail / balance reconstruction |
+| `GET` | `/accounts/:id/transactions.csv` | CSV export of an account's transactions |
+| `GET` | `/accounts/:id/audit.csv` | CSV export of an account's audit trail |
 
 ## Design guarantees
 

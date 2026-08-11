@@ -1,4 +1,5 @@
 import { Injectable } from '@nestjs/common';
+import type { Response } from 'express';
 import { encodeCursor, type Page } from '@/common/cursor';
 import { Money } from '@/domain/money';
 import { balanceEffect } from '@/domain/invariants';
@@ -117,4 +118,88 @@ export class AuditService {
     const rateClause = this.fxRateOf(row) ? ` @ fx ${this.fxRateOf(row)}` : '';
     return `${humanType(row.type)} ${signed(delta)}${clause}${rateClause} — balance ${running.toDecimalString()}`;
   }
+
+  /**
+   * Streams an account's history as CSV (T-25). Rows are fetched in bounded
+   * pages and streamed to the response, so arbitrarily large histories never
+   * load fully into memory. Amounts are decimal strings (never scientific
+   * notation); a UTF-8 BOM + CRLF line endings keep Excel happy.
+   */
+  async writeCsv(
+    res: Response,
+    accountId: string,
+    asOf?: Date,
+    variant: 'transactions' | 'audit' = 'transactions',
+  ): Promise<void> {
+    const account = await this.accounts.findById(accountId);
+    if (!account) throw new AccountNotFoundError();
+
+    const columns =
+      variant === 'audit'
+        ? ['seq', 'date', 'transaction_id', 'type', 'direction', 'amount', 'currency', 'counterparty_account', 'running_balance', 'reference', 'fx_rate', 'explanation']
+        : ['date', 'transaction_id', 'type', 'direction', 'amount', 'currency', 'counterparty_account', 'running_balance', 'reference'];
+
+    res.setHeader('Content-Type', 'text/csv; charset=utf-8');
+    res.setHeader('Content-Disposition', `attachment; filename="${variant}-${account.accountNumber}.csv"`);
+    res.write('\uFEFF'); // UTF-8 BOM for Excel
+    res.write(csvRow(columns));
+
+    const pageSize = 500;
+    let afterSeq: number | null = null;
+    let running = Money.fromDecimalString(await this.store.balanceUpToSeq(accountId, 0, asOf));
+
+    for (;;) {
+      const rows = await this.store.rawAudit(accountId, asOf, afterSeq, pageSize);
+      if (rows.length === 0) break;
+
+      const counterpartyIds = [...new Set(rows.flatMap((r) => r.counterpartyIds))];
+      const info = await this.accounts.accountInfoFor(counterpartyIds);
+
+      for (const row of rows) {
+        const delta =
+          balanceEffect(account.normalSide, row.direction) === 1
+            ? Money.fromDecimalString(row.amount)
+            : Money.fromDecimalString(row.amount).negate();
+        running = running.add(delta);
+
+        const counterpartyId = row.counterpartyIds[0];
+        const cp = counterpartyId ? info.get(counterpartyId) : undefined;
+
+        const base = [
+          row.postedAt.toISOString(),
+          row.transactionId,
+          row.type,
+          row.direction,
+          Money.fromDecimalString(row.amount).toDecimalString(),
+          row.currency,
+          cp?.accountNumber ?? '',
+          running.toDecimalString(),
+          row.reference ?? '',
+        ];
+        const values =
+          variant === 'audit'
+            ? [String(row.seq), ...base, this.fxRateOf(row) ?? '', this.explain(row, delta, cp ? `${cp.name} (${cp.accountNumber})` : undefined, running)]
+            : base;
+        res.write(csvRow(values));
+      }
+
+      (res as Response & { flush?: () => void }).flush?.();
+      if (rows.length < pageSize) break;
+      afterSeq = rows[rows.length - 1].seq;
+    }
+
+    res.end();
+  }
+}
+
+/** RFC-4180-ish CSV cell: quotes fields containing comma/quote/newline. */
+export function csvCell(value: string): string {
+  if (/[",\r\n]/.test(value)) {
+    return `"${value.replace(/"/g, '""')}"`;
+  }
+  return value;
+}
+
+export function csvRow(values: string[]): string {
+  return `${values.map(csvCell).join(',')}\r\n`;
 }

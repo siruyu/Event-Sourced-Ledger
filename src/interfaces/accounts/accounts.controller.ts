@@ -1,8 +1,10 @@
-import { Body, Controller, Get, HttpCode, HttpStatus, Param, Patch, Post, Query } from '@nestjs/common';
+import { Body, Controller, Get, HttpCode, HttpStatus, Param, Patch, Post, Query, Res } from '@nestjs/common';
+import type { Response } from 'express';
 import {
   ApiBody,
   ApiOperation,
   ApiParam,
+  ApiProduces,
   ApiQuery,
   ApiResponse,
   ApiTags,
@@ -114,6 +116,36 @@ export class AccountsController {
   @ApiResponse({ status: 404, description: 'Account not found', schema: { $ref: apiErrorRef } })
   get(@Param('id', new ZodValidationPipe(uuidSchema)) id: string): Promise<AccountView> {
     return this.accounts.get(id);
+  }
+
+  @Get(':id/transactions.csv')
+  @ApiProduces('text/csv')
+  @ApiOperation({ summary: 'Export an account\'s transactions as CSV' })
+  @ApiParam({ name: 'id', type: 'string', format: 'uuid' })
+  @ApiQuery({ name: 'as_of', required: false, description: 'ISO-8601 timestamp to trim the export' })
+  @ApiResponse({ status: 200, description: 'CSV attachment' })
+  @ApiResponse({ status: 404, description: 'Account not found', schema: { $ref: apiErrorRef } })
+  async exportTransactions(
+    @Param('id', new ZodValidationPipe(uuidSchema)) id: string,
+    @Query('as_of', new ZodValidationPipe(asOfSchema)) asOf: Date | undefined,
+    @Res() res: Response,
+  ): Promise<void> {
+    await this.audit.writeCsv(res, id, asOf, 'transactions');
+  }
+
+  @Get(':id/audit.csv')
+  @ApiProduces('text/csv')
+  @ApiOperation({ summary: 'Export an account\'s audit trail as CSV' })
+  @ApiParam({ name: 'id', type: 'string', format: 'uuid' })
+  @ApiQuery({ name: 'as_of', required: false, description: 'ISO-8601 timestamp to trim the export' })
+  @ApiResponse({ status: 200, description: 'CSV attachment' })
+  @ApiResponse({ status: 404, description: 'Account not found', schema: { $ref: apiErrorRef } })
+  async exportAudit(
+    @Param('id', new ZodValidationPipe(uuidSchema)) id: string,
+    @Query('as_of', new ZodValidationPipe(asOfSchema)) asOf: Date | undefined,
+    @Res() res: Response,
+  ): Promise<void> {
+    await this.audit.writeCsv(res, id, asOf, 'audit');
   }
 
   private afterSeqFromCursor(cursor?: string): number | null {
