@@ -55,8 +55,10 @@ and includes a concurrency stress test proving "no lost updates" under parallel 
 - **Append-only DB role** — apply `db/roles.sql` with a privileged connection to create the
   restricted `ledger_app` role (SELECT/INSERT on `entries`, never UPDATE/DELETE), then point
   `DATABASE_URL` at it. See `db/roles.sql` for the exact command.
-- **Auth + rate limiting** — the `API_KEYS` / `RATE_LIMIT_*` env vars (T-24) are not yet
-  implemented; keep the API on a private network until they land.
+- **Auth + rate limiting (T-24)** — set `API_KEYS` (comma-separated) to enable `x-api-key`
+  auth (401 otherwise); `RATE_LIMIT_MAX` / `RATE_LIMIT_WINDOW_MS` control the per-key
+  window, surfaced via `X-RateLimit-*` headers and `429 + Retry-After`. Both are disabled
+  when `API_KEYS` is unset. Keys are never stored in the DB and are redacted from logs.
 
 ## Key API surface
 

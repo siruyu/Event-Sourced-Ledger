@@ -426,8 +426,8 @@ Copy `.env.example` → `.env`. Nothing secret is committed.
 | `SNAPSHOT_MAX_LAG_EVENTS` | `5000` | stretch | Force snapshot when history replay grows past this |
 | `FX_PROVIDER` | `off` | stretch | `off` · `manual` · `external`. Cross-currency transfers currently take a caller-supplied `fx_rate`; an external feed is a future extension |
 | `FX_BASE_URL` / `FX_API_KEY` | — | stretch | External rate provider credentials |
-| `API_KEYS` | — | nice | Comma-separated static keys when auth enabled |
-| `RATE_LIMIT_WINDOW_MS` / `RATE_LIMIT_MAX` | `60000` / `100` | nice | Throttling |
+| `API_KEYS` | — | T-24 | Comma-separated static keys; enables `x-api-key` auth (401 otherwise). Unset = disabled |
+| `RATE_LIMIT_WINDOW_MS` / `RATE_LIMIT_MAX` | `60000` / `100` | T-24 | Per-key throttling window/limit; `X-RateLimit-*` headers + `429 Retry-After` |
 
 **Config rules**
 

@@ -1,9 +1,28 @@
 const BASE = '/api/v1';
+const KEY_STORAGE = 'ledger_api_key';
 
 export interface ApiErrorBody {
   code: string;
   message: string;
   details?: unknown;
+}
+
+/** API key for authenticated deployments (T-24), stored per browser session. */
+export function getApiKey(): string {
+  try {
+    return sessionStorage.getItem(KEY_STORAGE) ?? '';
+  } catch {
+    return '';
+  }
+}
+
+export function setApiKey(key: string): void {
+  try {
+    if (key.trim()) sessionStorage.setItem(KEY_STORAGE, key.trim());
+    else sessionStorage.removeItem(KEY_STORAGE);
+  } catch {
+    /* storage unavailable */
+  }
 }
 
 /** Error normalized from the API's `{ error: { code, message, details } }` contract. */
@@ -22,8 +41,12 @@ export class ApiError extends Error {
 }
 
 export async function api<T>(path: string, init?: RequestInit): Promise<T> {
+  const headers: Record<string, string> = { 'Content-Type': 'application/json' };
+  const key = getApiKey();
+  if (key) headers['x-api-key'] = key;
+
   const res = await fetch(`${BASE}${path}`, {
-    headers: { 'Content-Type': 'application/json' },
+    headers,
     ...init,
   });
 

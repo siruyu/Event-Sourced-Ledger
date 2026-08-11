@@ -1,7 +1,9 @@
 import { Controller, Get, HttpStatus, Inject, Res } from '@nestjs/common';
+import { SkipThrottle } from '@nestjs/throttler';
 import type { Response } from 'express';
 import { Pool } from 'pg';
 import { PG_POOL } from '@/infrastructure/db/providers';
+import { Public } from '@/common/security/public.decorator';
 
 const HEALTH_QUERY_TIMEOUT_MS = 2_000;
 
@@ -13,9 +15,10 @@ interface HealthBody {
 
 /**
  * Readiness probe: returns 200 only when the database is reachable, otherwise
- * 503. The liveness path (200 "ok") doubles as a dependency check so
- * orchestrators restart the API when Postgres is unreachable.
+ * 503. Public and unthrottled so orchestrators can poll freely without keys.
  */
+@Public()
+@SkipThrottle()
 @Controller('health')
 export class HealthController {
   constructor(@Inject(PG_POOL) private readonly pool: Pool) {}

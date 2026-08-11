@@ -526,10 +526,16 @@ Add API-key auth (static keys from `API_KEYS`) and per-key rate limiting before 
 exposure. Kept off by default for local dev.
 
 **Acceptance criteria**
-- [ ] Requests without a valid key → `401` when auth enabled
-- [ ] Rate limits enforced per key and window; limits documented via headers
-- [ ] Auth/rate limiting disabled when `API_KEYS` is unset (dev mode)
-- [ ] No key material logged or stored in the DB
+- [x] Requests without a valid key → `401` when auth enabled
+- [x] Rate limits enforced per key and window; limits documented via headers
+- [x] Auth/rate limiting disabled when `API_KEYS` is unset (dev mode)
+- [x] No key material logged or stored in the DB
+
+> **Implementation notes:** global `ApiKeyGuard` (static keys via `x-api-key`,
+> constant-time comparison) + `ApiKeyThrottlerGuard` (`@nestjs/throttler`, keyed by API key,
+> `RATE_LIMIT_MAX` / `RATE_LIMIT_WINDOW_MS`, `X-RateLimit-*` headers and `429 Retry-After`).
+> Both are no-ops when `API_KEYS` is unset. The health probe is `@Public()` + `@SkipThrottle()`
+> so orchestrators can poll without keys. Request logs redact `x-api-key`/`Authorization`.
 
 ---
 

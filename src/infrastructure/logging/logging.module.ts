@@ -19,6 +19,11 @@ const USE_PRETTY = process.env.NODE_ENV !== 'production' && process.env.NODE_ENV
       useFactory: (config: ConfigService) => ({
         pinoHttp: {
           level: config.get<string>('LOG_LEVEL', LOG_LEVEL),
+          // Never log key material or bearer tokens, even at debug level.
+          redact: {
+            paths: ['req.headers["x-api-key"]', 'req.headers.authorization'],
+            censor: '[REDACTED]',
+          },
           genReqId: (req: IncomingMessage, res: ServerResponse) => {
             const incoming = (req.headers['x-request-id'] as string | undefined)?.trim();
             const id = incoming && incoming.length > 0 && incoming.length <= 128 ? incoming : randomUUID();
