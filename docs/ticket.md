@@ -454,11 +454,11 @@ the latest snapshot then replay only trailing events, so recomputation stops rep
 entire history. Policies via `SNAPSHOT_INTERVAL_EVENTS` / `SNAPSHOT_MAX_LAG_EVENTS`.
 
 **Acceptance criteria**
-- [ ] Snapshot taken per account after N events (or forced when lag exceeds threshold)
-- [ ] Balance reads use snapshot + trailing events; result identical to full replay
-- [ ] Point-in-time reads use the newest snapshot with `seq`/time ≤ target, then replay the remainder
-- [ ] Snapshot writes are idempotent and safe under concurrency (`UNIQUE (account_id, seq)`)
-- [ ] A regression test asserts snapshot-backed reads equal full-replay reads on a history with thousands of events
+- [x] Snapshot taken per account after N events (or forced when lag exceeds threshold)
+- [x] Balance reads use snapshot + trailing events; result identical to full replay
+- [x] Point-in-time reads use the newest snapshot with `seq`/time ≤ target, then replay the remainder
+- [x] Snapshot writes are idempotent and safe under concurrency (`UNIQUE (account_id, seq)`)
+- [x] A regression test asserts snapshot-backed reads equal full-replay reads on a history with thousands of events
 
 ---
 

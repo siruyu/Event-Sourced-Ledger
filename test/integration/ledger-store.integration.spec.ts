@@ -161,6 +161,6 @@ describe('LedgerStore (append-only event log) [T-03]', () => {
 
     expect(await store.replay(acc)).toHaveLength(0);
     const balances = await store.balancesFor([acc]);
-    expect(balances.get(acc)).toBe('0');
+    expect(balances.get(acc)).toBe('0.0000');
   });
 });

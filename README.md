@@ -72,3 +72,6 @@ and includes a concurrency stress test proving "no lost updates" under parallel 
   writes.
 - **Concurrency-safe** — row locks in deterministic order + unique per-account sequence
   numbers; no lost updates.
+- **Snapshot-backed reads** — periodic balance snapshots (`SNAPSHOT_INTERVAL_EVENTS` /
+  `SNAPSHOT_MAX_LAG_EVENTS`) let balance reads replay only trailing events instead of full
+  history, with results always identical to a full replay.

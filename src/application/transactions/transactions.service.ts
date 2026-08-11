@@ -21,6 +21,7 @@ import { PostgresTransactionRunner, type SqlExecutor } from '@/infrastructure/db
 import { AccountRepository } from '@/infrastructure/repositories/account.repository';
 import { LedgerStore, type AppendEntryInput } from '@/infrastructure/event-store/ledger.store';
 import { InternalAccountsService } from '@/application/internal-accounts.service';
+import { SnapshotService } from '@/application/snapshot/snapshot.service';
 import { toTransactionView, type TransactionView } from './transaction-view';
 
 export interface PostTransactionOptions {
@@ -69,6 +70,7 @@ export class TransactionsService {
     private readonly accounts: AccountRepository,
     private readonly store: LedgerStore,
     private readonly internal: InternalAccountsService,
+    private readonly snapshot: SnapshotService,
     private readonly logger: Logger,
   ) {}
 
@@ -191,10 +193,12 @@ export class TransactionsService {
     }
 
     const txId = randomUUID();
+    let committedSeqs: Map<string, number> | undefined;
 
     try {
       await this.runner.withTransaction(async (sql) => {
         const entrySeq = await this.collectEntrySeqs(sql, domainTx);
+        committedSeqs = entrySeq;
 
         await this.store.insertTransaction(sql, {
           id: txId,
@@ -238,6 +242,8 @@ export class TransactionsService {
         },
         'transaction posted',
       );
+
+      await this.snapshotAfterCommit(domainTx, committedSeqs);
     } catch (err) {
       // A unique violation on the reference column means another concurrent
       // request won the race for this reference: resolve to that transaction.
@@ -263,6 +269,30 @@ export class TransactionsService {
   }
 
   /**
+   * Best-effort snapshot scheduling after a commit. Snapshot failures are
+   * logged and swallowed — they must never fail an already-committed money
+   * movement (reads stay correct either way; they just lose the optimization).
+   */
+  private async snapshotAfterCommit(
+    domainTx: DoubleEntryTransaction,
+    committedSeqs: Map<string, number> | undefined,
+  ): Promise<void> {
+    if (!committedSeqs) return;
+    for (const leg of domainTx.legs) {
+      const seq = committedSeqs.get(leg.accountId);
+      if (typeof seq !== 'number') continue;
+      try {
+        await this.snapshot.maybeSnapshot(leg.accountId, leg.currency, seq);
+      } catch (err) {
+        this.logger.error(
+          { accountId: leg.accountId, seq, error: err instanceof Error ? err.message : err },
+          'snapshot scheduling failed (non-fatal)',
+        );
+      }
+    }
+  }
+
+  /**
    * Voids a posted transaction by appending a compensating (reversal)
    * transaction that mirrors every leg with its direction flipped, then marks
    * the original void. Everything happens atomically and the event log stays
@@ -285,8 +315,10 @@ export class TransactionsService {
     const reversalTx = DoubleEntryTransaction.of(reversalLegs);
 
     const reversalId = randomUUID();
+    let committedSeqs: Map<string, number> | undefined;
     await this.runner.withTransaction(async (sql) => {
       const entrySeq = await this.collectEntrySeqs(sql, reversalTx);
+      committedSeqs = entrySeq;
 
       await this.store.insertTransaction(sql, {
         id: reversalId,
@@ -321,6 +353,8 @@ export class TransactionsService {
       { transactionId: reversalId, originalTransactionId: transactionId, type: 'reversal' },
       'transaction voided via compensating reversal',
     );
+
+    await this.snapshotAfterCommit(reversalTx, committedSeqs);
     return this.view(reversalId);
   }
 

@@ -329,7 +329,7 @@ for every transaction:  Σ(debit amount)  =  Σ(credit amount)
 
 A reconciliation job/tests re-assert this over the whole table as a final audit.
 
-### 7.4 `snapshots` (stretch — F18)
+### 7.4 `snapshots` (implemented — T-21)
 
 | Column | Type | Notes |
 |---|---|---|
@@ -340,8 +340,12 @@ A reconciliation job/tests re-assert this over the whole table as a final audit.
 | `currency` | `char(3)` NOT NULL | |
 | `created_at` | `timestamptz` NOT NULL DEFAULT `now()` | |
 
-`UNIQUE (account_id, seq)`. Balance read = latest snapshot with `seq <=` target, then replay
-only the trailing events. Snapshot frequency driven by `SNAPSHOT_INTERVAL_EVENTS` (see §9).
+`UNIQUE (account_id, seq)`. Balance read = latest snapshot with `seq <=` target (for
+point-in-time reads, with `created_at <= as_of`), then replay only the trailing events.
+Snapshot frequency driven by `SNAPSHOT_INTERVAL_EVENTS` (every N events) and
+`SNAPSHOT_MAX_LAG_EVENTS` (forced catch-up when lag grows too large); scheduling runs
+best-effort after each committed money movement via `SnapshotService` and is never allowed
+to fail the transaction.
 
 ### 7.5 Entity relationships (plain English)
 

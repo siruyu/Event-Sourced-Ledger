@@ -183,6 +183,42 @@ export class LedgerStore {
     return rows[0]?.balance ?? '0';
   }
 
+  /** The account's latest applied sequence number (for snapshot scheduling). */
+  async currentSequence(accountId: string): Promise<number> {
+    const { rows } = await this.pool.query<{ seq: number }>(
+      'SELECT current_sequence AS seq FROM accounts WHERE id = $1',
+      [accountId],
+    );
+    return rows[0]?.seq ?? 0;
+  }
+
+  /** The latest snapshot seq for an account, or null when none exists yet. */
+  async latestSnapshotSeq(accountId: string): Promise<number | null> {
+    const { rows } = await this.pool.query<{ seq: number }>(
+      'SELECT seq FROM snapshots WHERE account_id = $1 ORDER BY seq DESC LIMIT 1',
+      [accountId],
+    );
+    return rows[0]?.seq ?? null;
+  }
+
+  /**
+   * Writes a snapshot idempotently: `UNIQUE(account_id, seq)` guarantees a
+   * concurrent writer cannot create a duplicate position (DO NOTHING).
+   */
+  async insertSnapshot(input: {
+    accountId: string;
+    seq: number;
+    balance: string;
+    currency: string;
+  }): Promise<void> {
+    await this.pool.query(
+      `INSERT INTO snapshots (account_id, seq, balance, currency)
+       VALUES ($1, $2, $3, $4)
+       ON CONFLICT (account_id, seq) DO NOTHING`,
+      [input.accountId, input.seq, input.balance, input.currency],
+    );
+  }
+
   /**
    * Replays an account's history in sequence order, optionally truncated to an
    * as-of timestamp. Point-in-time consistency is safe because both legs of a
@@ -258,6 +294,12 @@ export class LedgerStore {
    * Derived balances for a set of accounts (optionally as of a timestamp).
    * Each account's balance follows its normal side: entries in the normal
    * direction add, entries in the opposite direction subtract.
+   *
+   * Snapshot-backed: the latest snapshot with `seq <= target` (and, for
+   * point-in-time reads, `created_at <= as_of`) provides the base balance,
+   * then only the trailing entries are summed. Accounts without a snapshot
+   * fall back to a full replay, so results are always identical to a full
+   * replay regardless of snapshot state.
    * Returns a Map<accountId, numericString>.
    */
   async balancesFor(
@@ -272,25 +314,36 @@ export class LedgerStore {
     if (accountIds.length === 0) return result;
 
     const q = this.resolveQueryable(queryable);
-    const asOfBound = asOf !== undefined;
     const { rows } = await q.query<{ accountId: string; balance: string }>(
-      `SELECT e.account_id AS "accountId",
-              COALESCE(
-                SUM(CASE
-                      WHEN (e.direction = 'debit'  AND a.normal_side = 'debit')
-                        OR (e.direction = 'credit' AND a.normal_side = 'credit')
-                      THEN e.amount
-                      ELSE -e.amount
-                    END),
-                0
-              )::numeric(19,4) AS balance
-         FROM entries e
-         JOIN accounts a ON a.id = e.account_id
-         ${asOfBound ? 'JOIN transactions t ON t.id = e.transaction_id' : ''}
-        WHERE e.account_id = ANY($1::uuid[])
-          ${asOfBound ? 'AND t.posted_at <= $2' : ''}
-        GROUP BY e.account_id`,
-      asOfBound ? [accountIds, asOf] : [accountIds],
+      `SELECT a.id AS "accountId",
+              (COALESCE(s.base, 0) + COALESCE(t.delta, 0))::numeric(19,4) AS balance
+         FROM accounts a
+         LEFT JOIN LATERAL (
+           SELECT sn.seq, sn.balance AS base
+             FROM snapshots sn
+            WHERE sn.account_id = a.id
+              AND ($2::timestamptz IS NULL OR sn.created_at <= $2::timestamptz)
+            ORDER BY sn.seq DESC
+            LIMIT 1
+         ) s ON TRUE
+         LEFT JOIN LATERAL (
+           SELECT COALESCE(
+                    SUM(CASE
+                          WHEN (e.direction = 'debit'  AND a.normal_side = 'debit')
+                            OR (e.direction = 'credit' AND a.normal_side = 'credit')
+                          THEN e.amount
+                          ELSE -e.amount
+                        END),
+                    0
+                  )::numeric(19,4) AS delta
+             FROM entries e
+             JOIN transactions t ON t.id = e.transaction_id
+            WHERE e.account_id = a.id
+              AND (s.seq IS NULL OR e.seq > s.seq)
+              AND ($2::timestamptz IS NULL OR t.posted_at <= $2::timestamptz)
+         ) t ON TRUE
+        WHERE a.id = ANY($1::uuid[])`,
+      [accountIds, asOf ?? null],
     );
 
     for (const r of rows) {
