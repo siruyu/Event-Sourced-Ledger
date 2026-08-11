@@ -1,6 +1,7 @@
 import { Inject, Injectable } from '@nestjs/common';
 import { Pool, QueryResultRow } from 'pg';
 import { PG_POOL } from '@/infrastructure/db/providers';
+import { Money } from '@/domain/money';
 
 export interface ReconciliationIssue {
   check: 'unbalanced_transaction' | 'sequence_gap_or_duplicate' | 'below_overdraft_limit';
@@ -20,6 +21,14 @@ interface UnbalancedRow extends QueryResultRow {
   transactionId: string;
   debits: string;
   credits: string;
+}
+
+interface CrossCurrencyRow extends QueryResultRow {
+  transactionId: string;
+  metadata: Record<string, unknown> | null;
+  direction: string;
+  amount: string;
+  currency: string;
 }
 
 interface SequenceRow extends QueryResultRow {
@@ -56,7 +65,8 @@ export class ReconciliationService {
          FROM transactions t
          LEFT JOIN entries e ON e.transaction_id = t.id
         GROUP BY t.id
-       HAVING COALESCE(SUM(CASE WHEN e.direction = 'debit' THEN e.amount END), 0)
+       HAVING COUNT(DISTINCT e.currency) <= 1
+          AND COALESCE(SUM(CASE WHEN e.direction = 'debit' THEN e.amount END), 0)
             <> COALESCE(SUM(CASE WHEN e.direction = 'credit' THEN e.amount END), 0)`,
     );
     for (const row of unbalanced.rows) {
@@ -65,6 +75,70 @@ export class ReconciliationService {
         transactionId: row.transactionId,
         details: { debits: row.debits, credits: row.credits },
       });
+    }
+
+    // Cross-currency transactions: debits and credits live in different
+    // currencies, so the raw-sum comparison cannot apply. Validate the
+    // double-entry invariant in a common currency instead: the quote leg must
+    // equal the base leg converted at the recorded fx_rate.
+    const crossCurrency = await this.pool.query<CrossCurrencyRow>(
+      `SELECT t.id AS "transactionId", t.metadata,
+              e.direction, e.amount, e.currency
+         FROM transactions t
+         JOIN entries e ON e.transaction_id = t.id
+        WHERE t.id IN (
+          SELECT transaction_id FROM entries
+           GROUP BY transaction_id HAVING COUNT(DISTINCT currency) > 1
+        )
+        ORDER BY t.id, e.id`,
+    );
+    const byTx = new Map<string, CrossCurrencyRow[]>();
+    for (const row of crossCurrency.rows) {
+      const list = byTx.get(row.transactionId) ?? [];
+      list.push(row);
+      byTx.set(row.transactionId, list);
+    }
+    for (const [transactionId, rows] of byTx) {
+      const fxRate = rows[0]?.metadata?.fxRate;
+      const fromCurrency = rows[0]?.metadata?.fromCurrency;
+      const toCurrency = rows[0]?.metadata?.toCurrency;
+      if (
+        typeof fxRate !== 'string' ||
+        typeof fromCurrency !== 'string' ||
+        typeof toCurrency !== 'string'
+      ) {
+        issues.push({
+          check: 'unbalanced_transaction',
+          transactionId,
+          details: { reason: 'cross-currency transaction missing fx_rate metadata' },
+        });
+        continue;
+      }
+      const baseLeg = rows.find((r) => r.currency === fromCurrency);
+      const quoteLeg = rows.find((r) => r.currency === toCurrency);
+      if (!baseLeg || !quoteLeg) {
+        issues.push({
+          check: 'unbalanced_transaction',
+          transactionId,
+          details: { reason: 'cross-currency transaction missing a base/quote leg' },
+        });
+        continue;
+      }
+      const expected = Money.fromDecimalString(baseLeg.amount).convertAt(fxRate);
+      if (!expected.equals(Money.fromDecimalString(quoteLeg.amount))) {
+        issues.push({
+          check: 'unbalanced_transaction',
+          transactionId,
+          details: {
+            baseCurrency: fromCurrency,
+            quoteCurrency: toCurrency,
+            fxRate,
+            baseAmount: baseLeg.amount,
+            quoteAmount: quoteLeg.amount,
+            expectedQuote: expected.toDecimalString(),
+          },
+        });
+      }
     }
 
     const sequence = await this.pool.query<SequenceRow>(

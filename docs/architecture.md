@@ -290,7 +290,7 @@ The aggregate record that groups entries. One row per business operation.
 | `type` | `enum(transaction_type)` NOT NULL | `deposit` · `withdrawal` · `transfer` · `fee` · `reversal` |
 | `status` | `enum(transaction_status)` NOT NULL DEFAULT `posted` | `posted` · `void` |
 | `description` | `text` NULL | Human note |
-| `metadata` | `jsonb` NOT NULL DEFAULT `{}` | Free-form: counterparty ids, `fx_rate` (stretch), audit notes |
+| `metadata` | `jsonb` NOT NULL DEFAULT `{}` | Free-form: counterparty ids, `fx_rate`/`from_currency`/`to_currency` on cross-currency transfers, audit notes |
 | `posted_at` | `timestamptz` NOT NULL DEFAULT `now()` | Effective business timestamp; used by point-in-time queries |
 | `created_at` | `timestamptz` NOT NULL DEFAULT `now()` | |
 
@@ -358,7 +358,8 @@ accounts 1 ──── N entries  ──── N ──── 1 transactions
 - **An account** has many **entries** (its history stream) and many **snapshots**.
 - **A transaction** has exactly ≥2 **entries** (its legs), spanning ≥1 accounts. A transfer
   has exactly 2 legs across 2 accounts; a deposit has 2 legs on the same account (the
-  customer's account and the bank's internal cash/equity account).
+  customer's account and the bank's internal cash/equity account for that currency — each
+  currency gets its own vault account, e.g. `LE-INTERNAL-CASH-EUR`).
 - Deleting an account or transaction is **forbidden**; closing is done via `status`.
 
 ---
@@ -379,7 +380,7 @@ numbers, to preserve precision.
 | `POST` | `/accounts/:id/deposits` | Post a deposit (balanced double-entry) |
 | `POST` | `/accounts/:id/withdrawals` | Post a withdrawal |
 | `GET` | `/accounts/:id/audit?as_of=` | Full audit trail / balance reconstruction |
-| `POST` | `/transfers` | Atomic transfer between two accounts |
+| `POST` | `/transfers` | Atomic transfer between two accounts (same-currency, or cross-currency with `fx_rate`) |
 | `GET` | `/transactions/:id` | Transaction detail incl. all legs |
 | `POST` | `/transactions/:id/void` | Should-have: void with compensating entry |
 | `PATCH` | `/accounts/:id/status` | Should-have: freeze / close |
@@ -417,7 +418,7 @@ Copy `.env.example` → `.env`. Nothing secret is committed.
 | `TX_MAX_RETRIES` | `5` | — | Retries on serialization/lock contention (code `40001`) |
 | `SNAPSHOT_INTERVAL_EVENTS` | `1000` | stretch | Take snapshot after every N events per account |
 | `SNAPSHOT_MAX_LAG_EVENTS` | `5000` | stretch | Force snapshot when history replay grows past this |
-| `FX_PROVIDER` | `off` | stretch | `off` · `manual` · `external` |
+| `FX_PROVIDER` | `off` | stretch | `off` · `manual` · `external`. Cross-currency transfers currently take a caller-supplied `fx_rate`; an external feed is a future extension |
 | `FX_BASE_URL` / `FX_API_KEY` | — | stretch | External rate provider credentials |
 | `API_KEYS` | — | nice | Comma-separated static keys when auth enabled |
 | `RATE_LIMIT_WINDOW_MS` / `RATE_LIMIT_MAX` | `60000` / `100` | nice | Throttling |

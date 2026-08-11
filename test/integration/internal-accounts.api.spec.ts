@@ -54,7 +54,7 @@ describe('Internal cash account creation (race-safe) [T-06 hardening]', () => {
     expect(results.every((r) => r.status === 201)).toBe(true);
 
     const { rows } = await pool.query(
-      `SELECT COUNT(*)::int AS n FROM accounts WHERE account_number = 'LE-INTERNAL-CASH'`,
+      `SELECT COUNT(*)::int AS n FROM accounts WHERE account_number = 'LE-INTERNAL-CASH-USD'`,
     );
     expect(rows[0].n).toBe(1);
 

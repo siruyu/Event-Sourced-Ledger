@@ -75,3 +75,7 @@ and includes a concurrency stress test proving "no lost updates" under parallel 
 - **Snapshot-backed reads** — periodic balance snapshots (`SNAPSHOT_INTERVAL_EVENTS` /
   `SNAPSHOT_MAX_LAG_EVENTS`) let balance reads replay only trailing events instead of full
   history, with results always identical to a full replay.
+- **Multi-currency + FX** — accounts in any ISO currency; cross-currency transfers take a
+  caller-supplied `fx_rate`, convert with deterministic half-up rounding, record the rate in
+  transaction metadata and the audit trail, and stay double-entry balanced in a common
+  currency. Each currency has its own internal cash vault account.

@@ -14,6 +14,38 @@ const MAX_UNITS = 10n ** (MAX_INTEGER_DIGITS + SCALE) - 1n;
 
 const DECIMAL_PATTERN = /^([+-]?)(\d+)(?:\.(\d{1,4}))?$/;
 
+/** FX rate: strictly positive decimal, up to 10 decimal places. */
+const FX_RATE_PATTERN = /^(\d+)(?:\.(\d{1,10}))?$/;
+
+/** Parsed FX rate: BigInt-scaled units plus the number of decimal places. */
+export type FxRate = { units: bigint; scale: number };
+
+/**
+ * Parses an FX rate (units of quote currency per one base unit) into a
+ * BigInt-scaled representation so conversions are exact under integer math.
+ */
+export function parseFxRate(rate: string): FxRate {
+  const match = FX_RATE_PATTERN.exec(rate.trim());
+  if (!match) throw new InvalidAmountError(`Invalid fx rate: "${rate}"`);
+  const integer = BigInt(match[1]);
+  const frac = match[2] ?? '';
+  const scale = frac.length;
+  const units = scale === 0 ? integer : integer * 10n ** BigInt(scale) + BigInt(frac);
+  if (units <= 0n) throw new InvalidAmountError('fx rate must be positive');
+  return { units, scale };
+}
+
+/**
+ * Rounds `numer/denom` to `scale` decimal places using half-up rounding
+ * (ties round away from zero). Deterministic under BigInt — no floats.
+ */
+export function roundHalfUp(numer: bigint, denom: bigint, scale: number): bigint {
+  const factor = 10n ** BigInt(scale);
+  const abs = numer < 0n ? -numer : numer;
+  const quotient = (abs * factor + denom / 2n) / denom;
+  return numer < 0n ? -quotient : quotient;
+}
+
 export class Money {
   private constructor(readonly units: bigint) {}
 
@@ -71,6 +103,19 @@ export class Money {
 
   abs(): Money {
     return this.units < 0n ? this.negate() : this;
+  }
+
+  /**
+   * Scales this amount by an FX rate (`rate` = units of quote currency per one
+   * base unit), returning a new Money rounded to 4 decimal places with
+   * deterministic half-up rounding. Currency semantics are the caller's
+   * responsibility; this only performs the exact numeric conversion.
+   */
+  convertAt(rate: string): Money {
+    const { units: rateUnits, scale } = parseFxRate(rate);
+    const denom = 10n ** BigInt(scale);
+    const units = roundHalfUp(this.units * rateUnits, denom, 0);
+    return Money.fromUnits(units);
   }
 
   compareTo(other: Money): -1 | 0 | 1 {

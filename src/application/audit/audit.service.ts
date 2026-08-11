@@ -18,6 +18,8 @@ export interface AuditEventView {
   effect: string;
   runningBalance: string;
   postedAt: string;
+  /** FX rate applied on cross-currency transactions (quote per source unit). */
+  fxRate?: string;
   counterparty: { accountId: string; accountNumber: string; name: string } | null;
   explanation: string;
 }
@@ -79,6 +81,7 @@ export class AuditService {
         effect: signed(delta),
         runningBalance: running.toDecimalString(),
         postedAt: row.postedAt.toISOString(),
+        ...(this.fxRateOf(row) ? { fxRate: this.fxRateOf(row) } : {}),
         counterparty: info && counterpartyId ? { accountId: counterpartyId, accountNumber: info.accountNumber, name: info.name } : null,
         explanation: this.explain(row, delta, label, running),
       };
@@ -103,9 +106,15 @@ export class AuditService {
     };
   }
 
+  private fxRateOf(row: AuditRow): string | undefined {
+    const rate = row.metadata?.fxRate;
+    return typeof rate === 'string' ? rate : undefined;
+  }
+
   private explain(row: AuditRow, delta: Money, counterpartyLabel: string | undefined, running: Money): string {
     const directionWord = row.direction === 'debit' ? 'from' : 'to';
     const clause = counterpartyLabel ? ` ${directionWord} ${counterpartyLabel}` : '';
-    return `${humanType(row.type)} ${signed(delta)}${clause} — balance ${running.toDecimalString()}`;
+    const rateClause = this.fxRateOf(row) ? ` @ fx ${this.fxRateOf(row)}` : '';
+    return `${humanType(row.type)} ${signed(delta)}${clause}${rateClause} — balance ${running.toDecimalString()}`;
   }
 }

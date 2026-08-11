@@ -28,6 +28,7 @@ export interface PostTransactionOptions {
   type: TransactionType;
   reference?: string;
   description?: string;
+  metadata?: Record<string, unknown>;
 }
 
 export interface MovementDto {
@@ -42,6 +43,8 @@ export interface TransferDto {
   amount: string;
   reference?: string;
   description?: string;
+  /** Units of the destination currency per one source-currency unit (cross-currency only). */
+  fxRate?: string;
 }
 
 export interface AccountTransactionItem {
@@ -77,7 +80,7 @@ export class TransactionsService {
   async deposit(accountId: string, dto: MovementDto): Promise<TransactionView> {
     const account = await this.accounts.findById(accountId);
     if (!account) throw new AccountNotFoundError();
-    const cashId = await this.internal.getInternalCashAccountId();
+    const cashId = await this.internal.getInternalCashAccountId(account.currency);
     const tx = buildDeposit(
       { accountId, amount: Money.fromDecimalString(dto.amount), currency: account.currency },
       cashId,
@@ -93,7 +96,7 @@ export class TransactionsService {
   async withdraw(accountId: string, dto: MovementDto): Promise<TransactionView> {
     const account = await this.accounts.findById(accountId);
     if (!account) throw new AccountNotFoundError();
-    const cashId = await this.internal.getInternalCashAccountId();
+    const cashId = await this.internal.getInternalCashAccountId(account.currency);
     const tx = buildWithdrawal(
       { accountId, amount: Money.fromDecimalString(dto.amount), currency: account.currency },
       cashId,
@@ -107,16 +110,28 @@ export class TransactionsService {
   }
 
   async transfer(dto: TransferDto): Promise<TransactionView> {
+    const from = await this.accounts.findById(dto.fromAccountId);
+    if (!from) throw new AccountNotFoundError();
+    const to = await this.accounts.findById(dto.toAccountId);
+    if (!to) throw new AccountNotFoundError();
+
     const tx = buildTransfer({
       fromAccountId: dto.fromAccountId,
       toAccountId: dto.toAccountId,
       amount: Money.fromDecimalString(dto.amount),
-      currency: await this.currencyFor(dto.fromAccountId),
+      fromCurrency: from.currency,
+      toCurrency: to.currency,
+      fxRate: dto.fxRate,
     });
+    const metadata =
+      from.currency !== to.currency
+        ? { fxRate: dto.fxRate, fromCurrency: from.currency, toCurrency: to.currency }
+        : undefined;
     const id = await this.postTransaction(tx, {
       type: 'transfer',
       reference: dto.reference,
       description: dto.description,
+      metadata,
     });
     return this.view(id);
   }
@@ -169,12 +184,6 @@ export class TransactionsService {
     };
   }
 
-  private async currencyFor(accountId: string): Promise<string> {
-    const account = await this.accounts.findById(accountId);
-    if (!account) throw new AccountNotFoundError();
-    return account.currency;
-  }
-
   /**
    * The core atomic write path shared by deposits, withdrawals, and transfers.
    * Returns the new transaction id (or the already-existing one when an
@@ -205,6 +214,7 @@ export class TransactionsService {
           type: opts.type,
           reference: opts.reference ?? null,
           description: opts.description ?? null,
+          metadata: opts.metadata,
           postedAt: new Date(),
         });
 

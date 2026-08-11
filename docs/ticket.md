@@ -474,11 +474,19 @@ conversions in a common/ledger currency so the double-entry invariant still hold
 globally, and add FX sources (manual or external provider).
 
 **Acceptance criteria**
-- [ ] Accounts can be created in multiple ISO currencies
-- [ ] Same-currency transfers unchanged; cross-currency transfers record `fx_rate` and convert exactly
-- [ ] Double-entry invariant holds across currencies (validated in a common currency)
-- [ ] Rounding is deterministic (documented half-up rule), no silent dust
-- [ ] FX rate is captured at transfer time and visible in audit trail
+- [x] Accounts can be created in multiple ISO currencies
+- [x] Same-currency transfers unchanged; cross-currency transfers record `fx_rate` and convert exactly
+- [x] Double-entry invariant holds across currencies (validated in a common currency)
+- [x] Rounding is deterministic (documented half-up rule), no silent dust
+- [x] FX rate is captured at transfer time and visible in audit trail
+
+> **Implementation notes:** cross-currency transfers pass a client-supplied `fx_rate`
+> (units of destination currency per one source unit); the destination leg is converted
+> with deterministic half-up rounding to 4 dp (`Money.convertAt`). Each currency gets its
+> own internal cash vault account so deposits/withdrawals stay single-currency balanced.
+> The reconciliation job validates cross-currency transactions by conversion instead of
+> raw debit/credit sums. External FX feeds (`FX_PROVIDER`) remain a documented future
+> extension — rates are supplied by the caller today.
 
 ---
 

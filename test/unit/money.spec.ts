@@ -80,4 +80,37 @@ describe('Money [T-04]', () => {
       }
     });
   });
+
+  describe('FX conversion (T-22)', () => {
+    it('converts exactly at simple rates', () => {
+      expect(Money.fromDecimalString('100.00').convertAt('0.85').toDecimalString()).toBe('85.0000');
+      expect(Money.fromDecimalString('1.00').convertAt('1.5').toDecimalString()).toBe('1.5000');
+      expect(Money.fromDecimalString('100.00').convertAt('0.01').toDecimalString()).toBe('1.0000');
+    });
+
+    it('handles high-precision rates', () => {
+      expect(Money.fromDecimalString('1.00').convertAt('123.456').toDecimalString()).toBe('123.4560');
+      expect(Money.fromDecimalString('3.00').convertAt('0.333333').toDecimalString()).toBe('1.0000');
+    });
+
+    it('rounds half-up to 4 decimal places deterministically', () => {
+      // 1.00 * 1.23456 = 1.23456 -> 1.2346 (5th digit 6 -> round up)
+      expect(Money.fromDecimalString('1.00').convertAt('1.23456').toDecimalString()).toBe('1.2346');
+      // 1.00 * 1.23455 = 1.23455 -> 1.2346 (exact tie at 5th digit -> half-up)
+      expect(Money.fromDecimalString('1.00').convertAt('1.23455').toDecimalString()).toBe('1.2346');
+      // 0.01 * 0.3334 = 0.003334 -> 0.0033 (rounds down)
+      expect(Money.fromDecimalString('0.01').convertAt('0.3334').toDecimalString()).toBe('0.0033');
+    });
+
+    it('is exact under repeated conversions (no float drift)', () => {
+      const converted = Money.fromDecimalString('250.00').convertAt('0.85');
+      expect(converted.toDecimalString()).toBe('212.5000');
+    });
+
+    it('rejects zero, negative, and malformed fx rates', () => {
+      for (const bad of ['0', '0.0', '-1', 'abc', '1..2', '']) {
+        expect(() => Money.fromDecimalString('10.00').convertAt(bad)).toThrow(InvalidAmountError);
+      }
+    });
+  });
 });

@@ -40,6 +40,7 @@ export interface AuditRow {
   reference: string | null;
   description: string | null;
   postedAt: Date;
+  metadata: Record<string, unknown> | null;
   counterpartyIds: string[];
 }
 
@@ -252,7 +253,7 @@ export class LedgerStore {
     const { rows } = await this.pool.query<AuditRow>(
       `SELECT e.seq, e.direction, e.amount, e.currency, e.created_at AS "createdAt",
               t.id AS "transactionId", t.type, t.reference, t.description,
-              t.posted_at AS "postedAt",
+              t.posted_at AS "postedAt", t.metadata,
               COALESCE((
                 SELECT array_agg(e2.account_id::text)
                   FROM entries e2

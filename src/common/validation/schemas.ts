@@ -1,11 +1,20 @@
 import { z } from 'zod';
-import { Money } from '@/domain/money';
+import { Money, parseFxRate, type FxRate } from '@/domain/money';
 import { ACCOUNT_TYPES, BALANCE_SIDES } from '@/domain/account';
 
 /** A decimal string that `Money` can parse (at most 4 decimal places). */
 function tryParseMoney(value: string): Money | null {
   try {
     return Money.fromDecimalString(value);
+  } catch {
+    return null;
+  }
+}
+
+/** A strictly positive FX rate (`quote units per one base unit`), ≤ 10 dp. */
+function tryParseFxRate(value: string): FxRate | null {
+  try {
+    return parseFxRate(value);
   } catch {
     return null;
   }
@@ -24,6 +33,20 @@ export const positiveMoneySchema = z.string().superRefine((v, ctx) => {
     ctx.addIssue({ code: z.ZodIssueCode.custom, message: 'Amount must be greater than zero' });
   }
 });
+
+/** Strictly positive FX rate for cross-currency transfers. */
+export const fxRateSchema = z
+  .string()
+  .superRefine((v, ctx) => {
+    const rate = tryParseFxRate(v);
+    if (!rate) {
+      ctx.addIssue({
+        code: z.ZodIssueCode.custom,
+        message: 'fx_rate must be a positive decimal with up to 10 decimal places',
+      });
+    }
+  })
+  .optional();
 
 /** Non-negative amount (overdraft limits, balances). */
 export const nonNegativeMoneySchema = z.string().superRefine((v, ctx) => {

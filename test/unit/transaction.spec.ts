@@ -76,7 +76,13 @@ describe('DoubleEntryTransaction [T-04]', () => {
 
 describe('transaction builders', () => {
   it('buildTransfer creates one credit and one debit of the same amount', () => {
-    const tx = buildTransfer({ fromAccountId: A, toAccountId: B, amount: Money.fromDecimalString('250.00'), currency: 'USD' });
+    const tx = buildTransfer({
+      fromAccountId: A,
+      toAccountId: B,
+      amount: Money.fromDecimalString('250.00'),
+      fromCurrency: 'USD',
+      toCurrency: 'USD',
+    });
     expect(tx.legFor(A)?.direction).toBe('credit');
     expect(tx.legFor(B)?.direction).toBe('debit');
     expect(tx.legFor(A)?.amount.toDecimalString()).toBe('250.0000');
@@ -85,8 +91,100 @@ describe('transaction builders', () => {
 
   it('buildTransfer rejects a self-transfer (A → A)', () => {
     expect(() =>
-      buildTransfer({ fromAccountId: A, toAccountId: A, amount: Money.fromDecimalString('1.00'), currency: 'USD' }),
+      buildTransfer({
+        fromAccountId: A,
+        toAccountId: A,
+        amount: Money.fromDecimalString('1.00'),
+        fromCurrency: 'USD',
+        toCurrency: 'USD',
+      }),
     ).toThrow(InvalidTransactionError);
+  });
+
+  it('buildTransfer converts cross-currency legs at the fx rate (half-up to 4dp)', () => {
+    const tx = buildTransfer({
+      fromAccountId: A,
+      toAccountId: B,
+      amount: Money.fromDecimalString('100.00'),
+      fromCurrency: 'USD',
+      toCurrency: 'EUR',
+      fxRate: '0.85',
+    });
+    expect(tx.legFor(A)?.currency).toBe('USD');
+    expect(tx.legFor(A)?.amount.toDecimalString()).toBe('100.0000');
+    expect(tx.legFor(B)?.currency).toBe('EUR');
+    expect(tx.legFor(B)?.amount.toDecimalString()).toBe('85.0000');
+    expect(tx.isBalanced()).toBe(true);
+    expect(tx.fxRate).toBe('0.85');
+  });
+
+  it('buildTransfer applies deterministic half-up rounding on conversions', () => {
+    const tx = buildTransfer({
+      fromAccountId: A,
+      toAccountId: B,
+      amount: Money.fromDecimalString('1.00'),
+      fromCurrency: 'USD',
+      toCurrency: 'JPY',
+      fxRate: '123.456',
+    });
+    expect(tx.legFor(B)?.amount.toDecimalString()).toBe('123.4560');
+  });
+
+  it('buildTransfer rejects a cross-currency transfer without an fx rate', () => {
+    expect(() =>
+      buildTransfer({
+        fromAccountId: A,
+        toAccountId: B,
+        amount: Money.fromDecimalString('10.00'),
+        fromCurrency: 'USD',
+        toCurrency: 'EUR',
+      }),
+    ).toThrow(InvalidTransactionError);
+  });
+
+  it('buildTransfer rejects an fx rate on a same-currency transfer', () => {
+    expect(() =>
+      buildTransfer({
+        fromAccountId: A,
+        toAccountId: B,
+        amount: Money.fromDecimalString('10.00'),
+        fromCurrency: 'USD',
+        toCurrency: 'USD',
+        fxRate: '1.0',
+      }),
+    ).toThrow(InvalidTransactionError);
+  });
+
+  it('DoubleEntryTransaction.crossCurrency validates the forward conversion', () => {
+    expect(() =>
+      DoubleEntryTransaction.crossCurrency(
+        [
+          { accountId: A, direction: 'credit', amount: Money.fromDecimalString('100.00'), currency: 'USD' },
+          { accountId: B, direction: 'debit', amount: Money.fromDecimalString('85.00'), currency: 'EUR' },
+        ],
+        { fxRate: '0.85', fxBase: 'USD' },
+      ),
+    ).toBeDefined();
+
+    // A quote leg that does not reconcile at the rate is rejected.
+    expect(() =>
+      DoubleEntryTransaction.crossCurrency(
+        [
+          { accountId: A, direction: 'credit', amount: Money.fromDecimalString('100.00'), currency: 'USD' },
+          { accountId: B, direction: 'debit', amount: Money.fromDecimalString('90.00'), currency: 'EUR' },
+        ],
+        { fxRate: '0.85', fxBase: 'USD' },
+      ),
+    ).toThrow(UnbalancedTransactionError);
+  });
+
+  it('DoubleEntryTransaction.of rejects un-routed multi-currency legs', () => {
+    expect(() =>
+      DoubleEntryTransaction.of([
+        { accountId: A, direction: 'credit', amount: Money.fromDecimalString('100.00'), currency: 'USD' },
+        { accountId: B, direction: 'debit', amount: Money.fromDecimalString('85.00'), currency: 'EUR' },
+      ]),
+    ).toThrow(UnbalancedTransactionError);
   });
 
   it('buildDeposit debits the customer and credits the internal cash account', () => {
@@ -105,7 +203,13 @@ describe('transaction builders', () => {
 
   it('rejects a zero-amount transfer', () => {
     expect(() =>
-      buildTransfer({ fromAccountId: A, toAccountId: B, amount: Money.fromDecimalString('0.00'), currency: 'USD' }),
+      buildTransfer({
+        fromAccountId: A,
+        toAccountId: B,
+        amount: Money.fromDecimalString('0.00'),
+        fromCurrency: 'USD',
+        toCurrency: 'USD',
+      }),
     ).toThrow(InvalidAmountError);
   });
 });

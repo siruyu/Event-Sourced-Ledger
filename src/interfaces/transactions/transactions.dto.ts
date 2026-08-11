@@ -1,5 +1,5 @@
 import { z } from 'zod';
-import { positiveMoneySchema, referenceSchema, uuidSchema } from '@/common/validation/schemas';
+import { positiveMoneySchema, referenceSchema, uuidSchema, fxRateSchema } from '@/common/validation/schemas';
 
 export const movementSchema = z.object({
   amount: positiveMoneySchema,
@@ -15,6 +15,7 @@ export const transferSchema = z
     amount: positiveMoneySchema,
     reference: referenceSchema,
     description: z.string().max(255, 'Description is too long').optional(),
+    fxRate: fxRateSchema,
   })
   .refine((d) => d.fromAccountId !== d.toAccountId, {
     path: ['toAccountId'],
