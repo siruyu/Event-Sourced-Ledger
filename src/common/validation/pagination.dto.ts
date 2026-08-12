@@ -1,4 +1,5 @@
 import { z } from 'zod';
+import { referenceParamSchema } from './schemas';
 
 /** Keyset pagination query params shared by list endpoints. */
 export const paginationSchema = z.object({
@@ -20,3 +21,28 @@ export const listQuerySchema = z.object({
 });
 
 export type ListQuery = z.infer<typeof listQuerySchema>;
+
+/** Audit list query: point-in-time + optional statement window (`from`/`to`). */
+export const auditListQuerySchema = listQuerySchema.extend({
+  from: z
+    .string()
+    .optional()
+    .refine((v) => v === undefined || !Number.isNaN(Date.parse(v)), 'from must be a valid ISO timestamp')
+    .transform((v) => (v === undefined ? undefined : new Date(v))),
+  to: z
+    .string()
+    .optional()
+    .refine((v) => v === undefined || !Number.isNaN(Date.parse(v)), 'to must be a valid ISO timestamp')
+    .transform((v) => (v === undefined ? undefined : new Date(v))),
+});
+export type AuditListQuery = z.infer<typeof auditListQuerySchema>;
+
+/** Global transactions feed query: optional reference (by-idempotency lookup), type/status filters, pagination. */
+export const transactionsFeedQuerySchema = z.object({
+  reference: referenceParamSchema.optional(),
+  type: z.enum(['deposit', 'withdrawal', 'transfer', 'reversal', 'fee']).optional(),
+  status: z.enum(['posted', 'void']).optional(),
+  limit: z.coerce.number().int().min(1).max(100).default(20).optional(),
+  cursor: z.string().max(256).optional(),
+});
+export type TransactionsFeedQuery = z.infer<typeof transactionsFeedQuerySchema>;

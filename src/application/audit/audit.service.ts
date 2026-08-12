@@ -47,16 +47,27 @@ export class AuditService {
     private readonly store: LedgerStore,
   ) {}
 
-  async get(accountId: string, asOf?: Date, afterSeq?: number | null, limit = 20): Promise<AuditView> {
+  async get(
+    accountId: string,
+    asOf?: Date,
+    afterSeq?: number | null,
+    limit = 20,
+    range?: { from?: Date; to?: Date },
+  ): Promise<AuditView> {
     const account = await this.accounts.findById(accountId);
     if (!account) throw new AccountNotFoundError();
 
     // Seed the running balance at the cursor instead of replaying the full
-    // history: only the requested page is read from the DB per request.
-    const base = await this.store.balanceUpToSeq(accountId, afterSeq ?? 0, asOf);
+    // history: only the requested page is read from the DB per request. For a
+    // statement window the base is the balance strictly before `from`, so the
+    // running balance at each row reflects the whole history, not just the page.
+    const base =
+      range?.from && afterSeq == null
+        ? ((await this.store.balancesFor([accountId], new Date(range.from.getTime() - 1))).get(accountId) ?? '0')
+        : await this.store.balanceUpToSeq(accountId, afterSeq ?? 0, asOf);
     let running = Money.fromDecimalString(base);
 
-    const rows = await this.store.rawAudit(accountId, asOf, afterSeq, limit + 1);
+    const rows = await this.store.rawAudit(accountId, asOf, afterSeq, limit + 1, range);
     const counterpartyIds = [...new Set(rows.flatMap((r) => r.counterpartyIds))];
     const accountInfo = await this.accounts.accountInfoFor(counterpartyIds);
 
@@ -92,9 +103,9 @@ export class AuditService {
     const page = hasMore ? allEvents.slice(0, limit) : allEvents;
     const last = page[page.length - 1];
 
-    // The account-level balance is the full derived balance as of the window
-    // (independent of which page is being viewed).
-    const full = await this.store.balancesFor([accountId], asOf);
+    // The account-level balance is the full derived balance at the window end
+    // (as_of > to > now), independent of which page is being viewed.
+    const full = await this.store.balancesFor([accountId], range?.to ?? asOf);
     const balance = Money.fromDecimalString(full.get(accountId) ?? '0').toDecimalString();
 
     return {
@@ -102,6 +113,8 @@ export class AuditService {
       accountNumber: account.accountNumber,
       balance,
       ...(asOf ? { asOf: asOf.toISOString() } : {}),
+      ...(range?.from ? { from: range.from.toISOString() } : {}),
+      ...(range?.to ? { to: range.to.toISOString() } : {}),
       items: page,
       ...(hasMore && last ? { nextCursor: encodeCursor({ seq: last.seq }) } : {}),
     };

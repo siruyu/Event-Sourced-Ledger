@@ -8,6 +8,9 @@ import '@fontsource/inter/700.css';
 import './index.css';
 import { App } from './App';
 import { ToastProvider } from '@/components/ui';
+import { applyTheme, getTheme } from '@/lib/theme';
+
+applyTheme(getTheme());
 
 const queryClient = new QueryClient({
   defaultOptions: {

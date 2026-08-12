@@ -2,7 +2,7 @@ import { Injectable } from '@nestjs/common';
 import { randomUUID } from 'crypto';
 import { encodeCursor, type Page } from '@/common/cursor';
 import { DEFAULT_NORMAL_SIDE, generateAccountNumber, type AccountType } from '@/domain/account';
-import { AccountNotFoundError, InvalidTransactionError } from '@/domain/errors';
+import { AccountClosedError, AccountNotFoundError, InvalidTransactionError } from '@/domain/errors';
 import { Money } from '@/domain/money';
 import type { NewAccount } from '../../../db/schema';
 import { PostgresTransactionRunner } from '@/infrastructure/db/tx-runner';
@@ -147,6 +147,27 @@ export class AccountsService {
         to: status,
         reason: 'Account status changed via API',
       });
+    });
+
+    return this.get(id);
+  }
+
+  /** Changes the overdraft limit; recorded on the account event stream. */
+  async updateLimit(id: string, overdraftLimit: string): Promise<AccountView> {
+    const normalized = Money.fromDecimalString(overdraftLimit).toDecimalString();
+
+    await this.runner.withTransaction(async (sql) => {
+      const locked = await this.accounts.lockForUpdate(sql, [id]);
+      if (locked.length === 0) throw new AccountNotFoundError();
+      const account = locked[0];
+      if (account.status === 'closed') throw new AccountClosedError('Cannot change the limit of a closed account');
+
+      await this.events.appendWithin(sql, id, 'limit_changed', {
+        from: account.overdraftLimit,
+        to: normalized,
+        overdraftLimit: normalized,
+      });
+      await sql.query('UPDATE accounts SET overdraft_limit = $2, updated_at = now() WHERE id = $1', [id, normalized]);
     });
 
     return this.get(id);

@@ -60,6 +60,25 @@ export interface AccountTransactionItem {
   postedAt: string;
 }
 
+export interface GlobalTransactionLegView {
+  accountId: string;
+  accountNumber: string;
+  accountName: string;
+  direction: 'debit' | 'credit';
+  amount: string;
+  currency: string;
+}
+
+export interface GlobalTransactionView {
+  id: string;
+  type: string;
+  status: string;
+  reference: string | null;
+  description: string | null;
+  postedAt: string;
+  legs: GlobalTransactionLegView[];
+}
+
 /**
  * Posts all money movements. Every operation is a validated double-entry
  * transaction written to the append-only event log inside a single database
@@ -181,6 +200,45 @@ export class TransactionsService {
     return {
       items,
       ...(hasMore && last ? { nextCursor: encodeCursor({ seq: last.seq }) } : {}),
+    };
+  }
+
+  /**
+   * Global transaction feed across all accounts, newest first (T-29). Cursor is
+   * `(postedAt, id)` so two transactions sharing a timestamp never overlap.
+   */
+  async listGlobal(
+    cursor: { postedAt: string; id: string } | null,
+    limit: number,
+    filters?: { type?: string; status?: string },
+  ): Promise<Page<GlobalTransactionView>> {
+    const rows = await this.store.paginateGlobalTransactions(cursor, limit + 1, filters);
+    const hasMore = rows.length > limit;
+    const page = hasMore ? rows.slice(0, limit) : rows;
+
+    const items: GlobalTransactionView[] = page.map((r) => ({
+      id: r.id,
+      type: r.type,
+      status: r.status,
+      reference: r.reference,
+      description: r.description,
+      postedAt: r.postedAt.toISOString(),
+      legs: r.legs.map((l) => ({
+        accountId: l.accountId,
+        accountNumber: l.accountNumber,
+        accountName: l.accountName,
+        direction: l.direction,
+        amount: Money.fromDecimalString(l.amount).toDecimalString(),
+        currency: l.currency,
+      })),
+    }));
+
+    const last = page[page.length - 1];
+    return {
+      items,
+      ...(hasMore && last
+        ? { nextCursor: encodeCursor({ postedAt: last.postedAt.toISOString(), id: last.id }) }
+        : {}),
     };
   }
 

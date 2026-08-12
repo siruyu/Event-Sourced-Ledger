@@ -24,6 +24,11 @@ export const updateStatusSchema = z.object({
 });
 export type UpdateStatusDto = z.infer<typeof updateStatusSchema>;
 
+export const updateLimitSchema = z.object({
+  overdraftLimit: nonNegativeMoneySchema,
+});
+export type UpdateLimitDto = z.infer<typeof updateLimitSchema>;
+
 /** List query for accounts: pagination + status/type filters (T-18). */
 export const accountsListQuerySchema = paginationSchema.extend({
   status: z.enum(['active', 'frozen', 'closed']).optional(),

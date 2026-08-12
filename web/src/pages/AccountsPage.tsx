@@ -6,6 +6,7 @@ import { listAccounts, type AccountListParams } from '@/api/accounts';
 import type { Account } from '@/api/types';
 import { Badge, EmptyState, ErrorState, Select, Spinner } from '@/components/ui';
 import { formatAmount } from '@/lib/format';
+import { getSettings } from '@/lib/settings';
 
 const statusTone: Record<Account['status'], 'success' | 'danger' | 'neutral'> = {
   active: 'success',
@@ -17,7 +18,7 @@ const ACCOUNT_TYPES = ['checking', 'savings', 'credit_card', 'cash', 'investment
 
 export function AccountsPage({ onCreateAccount }: { onCreateAccount: () => void }) {
   const [filters, setFilters] = useState<{ status?: Account['status']; type?: Account['type'] }>({});
-  const [limit, setLimit] = useState(100);
+  const [limit, setLimit] = useState(() => getSettings().pageSize);
 
   const params: AccountListParams = { limit, ...filters };
   const query = useQuery({

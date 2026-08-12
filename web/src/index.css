@@ -32,3 +32,118 @@
     transition-duration: 0.01ms !important;
   }
 }
+
+/* Dark theme. Scoped to `.dark` on <html>; light mode is untouched.
+   Remaps the fixed utility palette the app was built with so every surface,
+   text, and border adapts without editing individual components. */
+.dark {
+  color-scheme: dark;
+}
+
+.dark body {
+  background-color: #020617;
+  color: #e2e8f0;
+}
+
+.dark .bg-white {
+  background-color: #0f172a;
+}
+.dark .bg-slate-50 {
+  background-color: #111b30;
+}
+.dark .bg-slate-100 {
+  background-color: #1e293b;
+}
+.dark .hover\:bg-slate-50:hover {
+  background-color: #1e293b;
+}
+.dark .hover\:bg-slate-100:hover {
+  background-color: #1e293b;
+}
+
+.dark .text-slate-900 {
+  color: #e2e8f0;
+}
+.dark .text-slate-700 {
+  color: #cbd5e1;
+}
+.dark .text-slate-600 {
+  color: #94a3b8;
+}
+.dark .text-slate-500 {
+  color: #64748b;
+}
+.dark .text-slate-400 {
+  color: #64748b;
+}
+.dark .text-slate-300 {
+  color: #475569;
+}
+
+.dark .border-slate-100 {
+  border-color: #1e293b;
+}
+.dark .border-slate-200 {
+  border-color: #334155;
+}
+.dark .border-slate-300 {
+  border-color: #475569;
+}
+.dark .divide-slate-100 > :not([hidden]) ~ :not([hidden]) {
+  border-color: #1e293b;
+}
+.dark .divide-slate-200 > :not([hidden]) ~ :not([hidden]) {
+  border-color: #334155;
+}
+
+.dark .bg-slate-200 {
+  background-color: #334155;
+}
+.dark .bg-brand-50 {
+  background-color: rgba(99, 102, 241, 0.12);
+}
+.dark .text-brand-700 {
+  color: #a5b4fc;
+}
+.dark .hover\:bg-brand-50:hover {
+  background-color: rgba(99, 102, 241, 0.18);
+}
+
+.dark .bg-emerald-50 {
+  background-color: rgba(16, 185, 129, 0.12);
+}
+.dark .text-emerald-700 {
+  color: #6ee7b7;
+}
+.dark .text-emerald-500 {
+  color: #34d399;
+}
+.dark .ring-emerald-200 {
+  --tw-ring-color: rgba(16, 185, 129, 0.35);
+}
+
+.dark .bg-rose-50 {
+  background-color: rgba(244, 63, 94, 0.12);
+}
+.dark .text-rose-700 {
+  color: #fda4af;
+}
+.dark .text-rose-400 {
+  color: #fb7185;
+}
+.dark .ring-rose-200 {
+  --tw-ring-color: rgba(244, 63, 94, 0.35);
+}
+
+.dark .bg-amber-50 {
+  background-color: rgba(245, 158, 11, 0.12);
+}
+.dark .text-amber-700 {
+  color: #fcd34d;
+}
+.dark .text-amber-800 {
+  color: #fcd34d;
+}
+.dark .ring-amber-200 {
+  --tw-ring-color: rgba(245, 158, 11, 0.35);
+}

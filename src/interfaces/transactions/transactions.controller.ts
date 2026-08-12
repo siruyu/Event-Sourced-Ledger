@@ -10,12 +10,18 @@ import {
 import {
   TransactionsService,
   type AccountTransactionItem,
+  type GlobalTransactionView,
   type TransferDto,
 } from '@/application/transactions/transactions.service';
 import type { TransactionView } from '@/application/transactions/transaction-view';
 import { ZodValidationPipe } from '@/common/validation/zod-validation.pipe';
-import { referenceParamSchema, uuidSchema } from '@/common/validation/schemas';
-import { listQuerySchema, type ListQuery } from '@/common/validation/pagination.dto';
+import { uuidSchema } from '@/common/validation/schemas';
+import {
+  listQuerySchema,
+  transactionsFeedQuerySchema,
+  type ListQuery,
+  type TransactionsFeedQuery,
+} from '@/common/validation/pagination.dto';
 import { decodeCursor, type Page } from '@/common/cursor';
 import { jsonSchema, pageRefSchema } from '@/common/swagger/contract';
 import {
@@ -98,14 +104,28 @@ export class TransactionsController {
   }
 
   @Get('transactions')
-  @ApiOperation({ summary: 'Get a transaction by its client reference' })
-  @ApiQuery({ name: 'reference', required: true, description: 'Client idempotency key' })
-  @ApiResponse({ status: 200, description: 'Transaction detail', schema: { $ref: transactionRef } })
+  @ApiOperation({ summary: 'Get a transaction by reference, or the global activity feed' })
+  @ApiQuery({ name: 'reference', required: false, description: 'Client idempotency key (returns the single matching transaction)' })
+  @ApiQuery({ name: 'type', required: false, enum: ['deposit', 'withdrawal', 'transfer', 'reversal', 'fee'] })
+  @ApiQuery({ name: 'status', required: false, enum: ['posted', 'void'] })
+  @ApiQuery({ name: 'limit', required: false, type: 'integer', minimum: 1, maximum: 100, default: 20 })
+  @ApiQuery({ name: 'cursor', required: false, description: 'Opaque pagination cursor' })
+  @ApiResponse({ status: 200, description: 'A transaction (with reference) or a page of the feed' })
   @ApiResponse({ status: 404, description: 'No transaction for reference', schema: { $ref: apiErrorRef } })
-  getByReference(
-    @Query('reference', new ZodValidationPipe(referenceParamSchema)) reference: string,
-  ): Promise<TransactionView> {
-    return this.transactions.findByReference(reference);
+  async feed(
+    @Query(new ZodValidationPipe(transactionsFeedQuerySchema)) query: TransactionsFeedQuery,
+  ): Promise<TransactionView | Page<GlobalTransactionView>> {
+    if (query.reference) return this.transactions.findByReference(query.reference);
+
+    const decoded = decodeCursor(query.cursor);
+    const cursor =
+      decoded && typeof decoded.postedAt === 'string' && typeof decoded.id === 'string'
+        ? { postedAt: decoded.postedAt, id: decoded.id }
+        : null;
+    return this.transactions.listGlobal(cursor, query.limit ?? 20, {
+      type: query.type,
+      status: query.status,
+    });
   }
 
   @Post('transactions/:id/void')

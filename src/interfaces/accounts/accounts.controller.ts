@@ -15,7 +15,7 @@ import { AccountEventService, type StatusHistoryItem } from '@/application/accou
 import { AuditService, type AuditView } from '@/application/audit/audit.service';
 import { ZodValidationPipe } from '@/common/validation/zod-validation.pipe';
 import { asOfSchema, uuidSchema } from '@/common/validation/schemas';
-import { listQuerySchema, type ListQuery } from '@/common/validation/pagination.dto';
+import { auditListQuerySchema, type AuditListQuery } from '@/common/validation/pagination.dto';
 import { decodeCursor, type Page } from '@/common/cursor';
 import {
   balanceSchema,
@@ -25,9 +25,11 @@ import {
 import {
   accountsListQuerySchema,
   createAccountSchema,
+  updateLimitSchema,
   updateStatusSchema,
   type AccountsListQuery,
   type CreateAccountDto,
+  type UpdateLimitDto,
   type UpdateStatusDto,
 } from './accounts.dto';
 
@@ -89,6 +91,21 @@ export class AccountsController {
     return this.accounts.updateStatus(id, dto.status);
   }
 
+  @Patch(':id/limit')
+  @HttpCode(HttpStatus.OK)
+  @ApiOperation({ summary: 'Change the overdraft limit (recorded on the event stream)' })
+  @ApiParam({ name: 'id', type: 'string', format: 'uuid' })
+  @ApiBody({ schema: jsonSchema(updateLimitSchema) })
+  @ApiResponse({ status: 200, description: 'Updated account', schema: { $ref: accountRef } })
+  @ApiResponse({ status: 404, description: 'Account not found', schema: { $ref: apiErrorRef } })
+  @ApiResponse({ status: 409, description: 'Closed account', schema: { $ref: apiErrorRef } })
+  updateLimit(
+    @Param('id', new ZodValidationPipe(uuidSchema)) id: string,
+    @Body(new ZodValidationPipe(updateLimitSchema)) dto: UpdateLimitDto,
+  ): Promise<AccountView> {
+    return this.accounts.updateLimit(id, dto.overdraftLimit);
+  }
+
   @Get(':id/balance')
   @ApiOperation({ summary: 'Get current or point-in-time balance' })
   @ApiParam({ name: 'id', type: 'string', format: 'uuid' })
@@ -106,16 +123,21 @@ export class AccountsController {
   @ApiOperation({ summary: 'Audit trail reconstructing the balance history' })
   @ApiParam({ name: 'id', type: 'string', format: 'uuid' })
   @ApiQuery({ name: 'as_of', required: false, description: 'ISO-8601 timestamp to trim the trail' })
+  @ApiQuery({ name: 'from', required: false, description: 'ISO-8601 start of a statement window' })
+  @ApiQuery({ name: 'to', required: false, description: 'ISO-8601 end of a statement window' })
   @ApiQuery({ name: 'limit', required: false, schema: { type: 'integer', minimum: 1, maximum: 100, default: 20 } })
   @ApiQuery({ name: 'cursor', required: false, description: 'Opaque pagination cursor' })
   @ApiResponse({ status: 200, description: 'Audit trail page', schema: pageRefSchema('#/components/schemas/AuditEvent') })
   @ApiResponse({ status: 404, description: 'Account not found', schema: { $ref: apiErrorRef } })
   auditTrail(
     @Param('id', new ZodValidationPipe(uuidSchema)) id: string,
-    @Query(new ZodValidationPipe(listQuerySchema)) query: ListQuery,
+    @Query(new ZodValidationPipe(auditListQuerySchema)) query: AuditListQuery,
   ): Promise<AuditView> {
     const afterSeq = this.afterSeqFromCursor(query.cursor);
-    return this.audit.get(id, query.as_of, afterSeq, query.limit ?? 20);
+    return this.audit.get(id, query.as_of, afterSeq, query.limit ?? 20, {
+      from: query.from,
+      to: query.to,
+    });
   }
 
   @Get(':id/status-history')

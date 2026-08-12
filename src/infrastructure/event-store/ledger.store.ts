@@ -57,6 +57,25 @@ export interface AccountTransactionRow {
   currency: string;
 }
 
+export interface GlobalTransactionLeg {
+  accountId: string;
+  accountNumber: string;
+  accountName: string;
+  direction: 'debit' | 'credit';
+  amount: string;
+  currency: string;
+}
+
+export interface GlobalTransactionRow {
+  id: string;
+  type: string;
+  status: string;
+  reference: string | null;
+  description: string | null;
+  postedAt: Date;
+  legs: GlobalTransactionLeg[];
+}
+
 /**
  * The event store. Writes are append-only and always executed inside the caller's
  * transaction (a SqlExecutor); reads run directly on the pool. Never exposes an
@@ -249,6 +268,7 @@ export class LedgerStore {
     asOf?: Date,
     afterSeq?: number | null,
     limit?: number,
+    range?: { from?: Date; to?: Date },
   ): Promise<AuditRow[]> {
     const { rows } = await this.pool.query<AuditRow>(
       `SELECT e.seq, e.direction, e.amount, e.currency, e.created_at AS "createdAt",
@@ -265,9 +285,11 @@ export class LedgerStore {
         WHERE e.account_id = $1
           AND ($2::timestamptz IS NULL OR t.posted_at <= $2)
           AND ($3::bigint IS NULL OR e.seq > $3)
+          AND ($5::timestamptz IS NULL OR t.posted_at >= $5)
+          AND ($6::timestamptz IS NULL OR t.posted_at <= $6)
         ORDER BY e.seq ASC
         LIMIT $4`,
-      [accountId, asOf ?? null, afterSeq ?? null, limit ?? null],
+      [accountId, asOf ?? null, afterSeq ?? null, limit ?? null, range?.from ?? null, range?.to ?? null],
     );
     return rows;
   }
@@ -287,6 +309,45 @@ export class LedgerStore {
         ORDER BY e.seq ASC
         LIMIT $3`,
       [accountId, afterSeq ?? null, limit],
+    );
+    return rows;
+  }
+
+  /**
+   * Global transaction feed (all accounts), newest-first, keyset-paginated by
+   * `(posted_at, id)` descending. Each row carries the full leg set so
+   * cross-currency transfers are unambiguous. Optional type/status filters.
+   */
+  async paginateGlobalTransactions(
+    cursor: { postedAt: string; id: string } | null,
+    limit: number,
+    filters?: { type?: string; status?: string },
+  ): Promise<GlobalTransactionRow[]> {
+    const { rows } = await this.pool.query<GlobalTransactionRow>(
+      `SELECT t.id, t.type, t.status, t.reference, t.description,
+              t.posted_at AS "postedAt",
+              COALESCE(jsonb_agg(
+                jsonb_build_object(
+                  'accountId', e.account_id::text,
+                  'accountNumber', a.account_number,
+                  'accountName', a.name,
+                  'direction', e.direction,
+                  'amount', e.amount::text,
+                  'currency', e.currency
+                )
+                ORDER BY a.account_number
+              ) FILTER (WHERE e.id IS NOT NULL), '[]'::jsonb) AS legs
+         FROM transactions t
+         JOIN entries e ON e.transaction_id = t.id
+         JOIN accounts a ON a.id = e.account_id
+        WHERE ($1::text IS NULL OR t.type::text = $1)
+          AND ($2::text IS NULL OR t.status::text = $2)
+          AND ($3::timestamptz IS NULL OR t.posted_at < $3
+               OR (t.posted_at = $3::timestamptz AND t.id < $4::uuid))
+        GROUP BY t.id
+        ORDER BY t.posted_at DESC, t.id DESC
+        LIMIT $5`,
+      [filters?.type ?? null, filters?.status ?? null, cursor?.postedAt ?? null, cursor?.id ?? null, limit],
     );
     return rows;
   }

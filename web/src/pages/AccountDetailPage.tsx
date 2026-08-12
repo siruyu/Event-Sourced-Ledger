@@ -1,16 +1,23 @@
-import { useMemo, useState } from 'react';
+import { useEffect, useMemo, useState } from 'react';
 import { useParams, Link } from 'react-router-dom';
 import { useQuery } from '@tanstack/react-query';
-import { ArrowDownToLine, ArrowUpFromLine, ArrowRightLeft, ChevronLeft, Clock, Download, Landmark, Shield, RotateCcw } from 'lucide-react';
+import { ArrowDownToLine, ArrowUpFromLine, ArrowRightLeft, ChevronLeft, Clock, Download, Landmark, Settings2, Shield, RotateCcw } from 'lucide-react';
 import { downloadCsv, getAccount, getAudit, getBalance } from '@/api/accounts';
 import { ApiError } from '@/api/client';
+import type { AuditEvent } from '@/api/types';
 import { Badge, Button, Card, EmptyState, ErrorState, Spinner, useToast } from '@/components/ui';
 import { MovementModal } from '@/components/forms/MovementModal';
 import { TransferModal } from '@/components/forms/TransferModal';
 import { ManageStatusModal } from '@/components/forms/ManageStatusModal';
+import { ManageLimitModal } from '@/components/forms/ManageLimitModal';
 import { VoidModal } from '@/components/forms/VoidModal';
+import { BalanceChart } from '@/components/BalanceChart';
+import { CopyButton } from '@/components/CopyButton';
 import { StatusHistoryPanel } from '@/components/StatusHistoryPanel';
+import { TransactionDetailModal } from '@/components/TransactionDetailModal';
 import { formatAmount, formatDateTime, toLocalDateTimeInputValue } from '@/lib/format';
+
+const AUDIT_PAGE = 50;
 
 const typeTone: Record<string, string> = {
   deposit: 'bg-emerald-50 text-emerald-700 ring-emerald-200',
@@ -27,7 +34,10 @@ function Dot({ className }: { className: string }) {
 export function AccountDetailPage() {
   const { id = '' } = useParams();
   const [asOf, setAsOf] = useState<string>();
-  const [modal, setModal] = useState<'deposit' | 'withdraw' | 'transfer' | 'status' | 'void' | null>(null);
+  const [modal, setModal] = useState<'deposit' | 'withdraw' | 'transfer' | 'status' | 'void' | 'limit' | null>(null);
+  const [selectedTx, setSelectedTx] = useState<string>();
+  const [auditCursor, setAuditCursor] = useState<string>();
+  const [auditItems, setAuditItems] = useState<AuditEvent[]>([]);
   const toast = useToast();
 
   const onExport = (variant: 'transactions' | 'audit') => {
@@ -43,18 +53,36 @@ export function AccountDetailPage() {
     enabled: Boolean(asOf),
   });
   const auditQuery = useQuery({
-    queryKey: ['audit', id, asOf ?? 'all'],
-    queryFn: () => getAudit(id, { asOf, limit: 100 }),
+    queryKey: ['audit', id, asOf ?? 'all', auditCursor ?? 'start'],
+    queryFn: () => getAudit(id, { asOf, cursor: auditCursor, limit: AUDIT_PAGE }),
   });
+
+  // Append each loaded page to the accumulated timeline (deduped by seq).
+  useEffect(() => {
+    const page = auditQuery.data?.items ?? [];
+    if (page.length === 0) return;
+    setAuditItems((prev) => {
+      const known = new Set(prev.map((i) => i.seq));
+      const fresh = page.filter((i) => !known.has(i.seq));
+      return fresh.length > 0 ? [...prev, ...fresh] : prev;
+    });
+  }, [auditQuery.data]);
+
+  // Reset the accumulation when the account or point-in-time window changes.
+  useEffect(() => {
+    setAuditItems([]);
+    setAuditCursor(undefined);
+  }, [id, asOf]);
 
   const account = accountQuery.data;
   const displayBalance = asOf ? balanceQuery.data?.balance : account?.balance;
 
   const timeline = useMemo(() => {
-    const items = auditQuery.data?.items ?? [];
-    const max = Math.max(...items.map((i) => i.seq), 0);
-    return items.map((item) => ({ item, isLast: item.seq === max }));
-  }, [auditQuery.data]);
+    const max = Math.max(...auditItems.map((i) => i.seq), 0);
+    return auditItems.map((item) => ({ item, isLast: item.seq === max }));
+  }, [auditItems]);
+
+  const hasMore = Boolean(auditQuery.data?.nextCursor);
 
   const header = (
     <div className="flex flex-wrap items-start justify-between gap-4">
@@ -70,7 +98,10 @@ export function AccountDetailPage() {
             </Badge>
             <Badge tone="brand">{account?.type}</Badge>
           </div>
-          <p className="mt-0.5 font-mono text-sm text-slate-500">{account?.accountNumber}</p>
+          <p className="mt-0.5 flex items-center gap-1 font-mono text-sm text-slate-500">
+            {account?.accountNumber}
+            {account ? <CopyButton value={account.id} label="Account ID" /> : null}
+          </p>
         </div>
       </div>
       <div className="flex flex-wrap gap-2.5">
@@ -93,6 +124,10 @@ export function AccountDetailPage() {
         <Button variant="secondary" onClick={() => setModal('status')}>
           <Shield className="h-4 w-4" aria-hidden="true" />
           Manage status
+        </Button>
+        <Button variant="secondary" onClick={() => setModal('limit')}>
+          <Settings2 className="h-4 w-4" aria-hidden="true" />
+          Manage limit
         </Button>
       </div>
     </div>
@@ -163,6 +198,19 @@ export function AccountDetailPage() {
       </Card>
 
       <Card className="p-5">
+        <h2 className="text-base font-semibold text-slate-900">Balance over time</h2>
+        <div className="mt-3">
+          {auditItems.length >= 2 ? (
+            <BalanceChart events={auditItems} />
+          ) : (
+            <p className="rounded-lg bg-slate-50 px-3 py-4 text-center text-sm text-slate-500">
+              Add at least two entries to see a balance-over-time chart.
+            </p>
+          )}
+        </div>
+      </Card>
+
+      <Card className="p-5">
         <div className="flex flex-wrap items-center justify-between gap-4">
           <h2 className="text-base font-semibold text-slate-900">Audit trail</h2>
           <div className="flex flex-wrap items-center gap-3">
@@ -192,7 +240,7 @@ export function AccountDetailPage() {
         </div>
 
         <div className="mt-4">
-          {auditQuery.isLoading ? (
+          {auditQuery.isLoading && auditItems.length === 0 ? (
             <div className="flex items-center justify-center py-12">
               <Spinner className="h-6 w-6 text-brand-600" />
             </div>
@@ -201,43 +249,58 @@ export function AccountDetailPage() {
           ) : timeline.length === 0 ? (
             <EmptyState title="No activity yet" hint="Deposits, withdrawals, and transfers will appear here as an event timeline." />
           ) : (
-            <ol className="relative space-y-0">
-              {timeline.map(({ item, isLast }) => (
-                <li key={item.seq} className="relative flex gap-3 pb-5">
-                  {!isLast ? <span className="absolute left-[5px] top-4 h-full w-px bg-slate-200" aria-hidden="true" /> : null}
-                  <Dot className={item.direction === 'debit' ? 'bg-emerald-500' : 'bg-rose-400'} />
-                  <div className="min-w-0 flex-1">
-                    <div className="flex flex-wrap items-baseline justify-between gap-x-3 gap-y-0.5">
-                      <div className="flex flex-wrap items-center gap-2">
-                        <span className={`inline-flex items-center rounded-md px-1.5 py-0.5 text-[11px] font-semibold uppercase tracking-wide ring-1 ring-inset ${typeTone[item.type] ?? typeTone.fee}`}>
-                          {item.type}
-                        </span>
-                        <span className="text-xs text-slate-400">seq {item.seq}</span>
-                        {item.fxRate ? <span className="text-xs text-slate-400">fx {item.fxRate}</span> : null}
-                      </div>
-                      <span className={`text-sm font-semibold tabular-nums ${item.direction === 'debit' ? 'text-emerald-700' : 'text-rose-700'}`}>
-                        {item.effect}
-                      </span>
+            <>
+              <ol className="relative space-y-0">
+                {timeline.map(({ item, isLast }) => (
+                  <li key={item.seq} className="relative flex gap-3 pb-5">
+                    {!isLast ? <span className="absolute left-[5px] top-4 h-full w-px bg-slate-200" aria-hidden="true" /> : null}
+                    <Dot className={item.direction === 'debit' ? 'bg-emerald-500' : 'bg-rose-400'} />
+                    <div className="min-w-0 flex-1">
+                      <button
+                        type="button"
+                        onClick={() => setSelectedTx(item.transactionId)}
+                        className="w-full rounded-lg px-1 text-left transition-colors hover:bg-slate-50 focus-visible:outline focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-brand-500"
+                      >
+                        <div className="flex flex-wrap items-baseline justify-between gap-x-3 gap-y-0.5">
+                          <div className="flex flex-wrap items-center gap-2">
+                            <span className={`inline-flex items-center rounded-md px-1.5 py-0.5 text-[11px] font-semibold uppercase tracking-wide ring-1 ring-inset ${typeTone[item.type] ?? typeTone.fee}`}>
+                              {item.type}
+                            </span>
+                            <span className="text-xs text-slate-400">seq {item.seq}</span>
+                            {item.fxRate ? <span className="text-xs text-slate-400">fx {item.fxRate}</span> : null}
+                          </div>
+                          <span className={`text-sm font-semibold tabular-nums ${item.direction === 'debit' ? 'text-emerald-700' : 'text-rose-700'}`}>
+                            {item.effect}
+                          </span>
+                        </div>
+                        <p className="mt-0.5 text-sm text-slate-700">{item.explanation}</p>
+                        <div className="mt-0.5 flex flex-wrap gap-x-4 gap-y-0.5 text-xs text-slate-500">
+                          {item.reference ? (
+                            <span className="font-mono">ref: {item.reference}</span>
+                          ) : null}
+                          {item.counterparty ? (
+                            <span>
+                              Counterparty: {item.counterparty.name} ({item.counterparty.accountNumber})
+                            </span>
+                          ) : null}
+                          <span>{formatDateTime(item.postedAt)}</span>
+                        </div>
+                        <p className="mt-1 text-xs text-slate-500">
+                          Running balance: <span className="font-medium tabular-nums text-slate-700">{formatAmount(item.runningBalance, account.currency)}</span>
+                        </p>
+                      </button>
                     </div>
-                    <p className="mt-0.5 text-sm text-slate-700">{item.explanation}</p>
-                    <div className="mt-0.5 flex flex-wrap gap-x-4 gap-y-0.5 text-xs text-slate-500">
-                      {item.reference ? (
-                        <span className="font-mono">ref: {item.reference}</span>
-                      ) : null}
-                      {item.counterparty ? (
-                        <span>
-                          Counterparty: {item.counterparty.name} ({item.counterparty.accountNumber})
-                        </span>
-                      ) : null}
-                      <span>{formatDateTime(item.postedAt)}</span>
-                    </div>
-                    <p className="mt-1 text-xs text-slate-500">
-                      Running balance: <span className="font-medium tabular-nums text-slate-700">{formatAmount(item.runningBalance, account.currency)}</span>
-                    </p>
-                  </div>
-                </li>
-              ))}
-            </ol>
+                  </li>
+                ))}
+              </ol>
+              {hasMore ? (
+                <div className="flex justify-center pt-1">
+                  <Button variant="secondary" onClick={() => setAuditCursor(auditQuery.data?.nextCursor)} loading={auditQuery.isFetching}>
+                    Load more
+                  </Button>
+                </div>
+              ) : null}
+            </>
           )}
         </div>
       </Card>
@@ -246,7 +309,9 @@ export function AccountDetailPage() {
       {modal === 'withdraw' ? <MovementModal accountId={account.id} currency={account.currency} kind="withdraw" onClose={() => setModal(null)} /> : null}
       {modal === 'transfer' ? <TransferModal defaultFromId={account.id} onClose={() => setModal(null)} /> : null}
       {modal === 'status' ? <ManageStatusModal account={account} onClose={() => setModal(null)} /> : null}
+      {modal === 'limit' ? <ManageLimitModal account={account} onClose={() => setModal(null)} /> : null}
       {modal === 'void' ? <VoidModal accountId={account.id} onClose={() => setModal(null)} /> : null}
+      {selectedTx ? <TransactionDetailModal transactionId={selectedTx} onClose={() => setSelectedTx(undefined)} /> : null}
 
       <StatusHistoryPanel accountId={account.id} />
     </div>

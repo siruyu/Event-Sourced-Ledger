@@ -4,8 +4,10 @@ import type {
   AccountTransactionItem,
   AuditView,
   CreateAccountInput,
+  FeedTransaction,
   MovementInput,
   Page,
+  ReconciliationReport,
   StatusHistoryItem,
   Transaction,
   TransferInput,
@@ -60,15 +62,23 @@ export const getBalance = (id: string, asOf?: string) =>
 
 export const getAudit = (
   id: string,
-  opts: { asOf?: string; cursor?: string; limit?: number } = {},
+  opts: { asOf?: string; from?: string; to?: string; cursor?: string; limit?: number } = {},
 ) => {
   const params = new URLSearchParams();
   if (opts.asOf) params.set('as_of', opts.asOf);
+  if (opts.from) params.set('from', opts.from);
+  if (opts.to) params.set('to', opts.to);
   if (opts.cursor) params.set('cursor', opts.cursor);
   if (opts.limit) params.set('limit', String(opts.limit));
   const qs = params.toString();
   return api<AuditView>(`/accounts/${id}/audit${qs ? `?${qs}` : ''}`);
 };
+
+export const updateAccountLimit = (id: string, overdraftLimit: string) =>
+  api<Account>(`/accounts/${id}/limit`, {
+    method: 'PATCH',
+    body: JSON.stringify({ overdraftLimit }),
+  });
 
 export const deposit = (id: string, input: MovementInput) =>
   post<Transaction>(`/accounts/${id}/deposits`, input);
@@ -77,6 +87,29 @@ export const withdraw = (id: string, input: MovementInput) =>
   post<Transaction>(`/accounts/${id}/withdrawals`, input);
 
 export const transfer = (input: TransferInput) => post<Transaction>('/transfers', input);
+
+/** Global activity feed (newest first) with optional type/status filters. */
+export const getTransactionsFeed = (
+  opts: { type?: string; status?: string; cursor?: string; limit?: number } = {},
+) => {
+  const params = new URLSearchParams();
+  if (opts.type) params.set('type', opts.type);
+  if (opts.status) params.set('status', opts.status);
+  if (opts.cursor) params.set('cursor', opts.cursor);
+  if (opts.limit) params.set('limit', String(opts.limit));
+  const qs = params.toString();
+  return api<Page<FeedTransaction>>(`/transactions${qs ? `?${qs}` : ''}`);
+};
+
+/** Look up a single transaction by its idempotency reference. */
+export const getTransactionByReference = (reference: string) =>
+  api<Transaction>(`/transactions?reference=${encodeURIComponent(reference)}`);
+
+/** Full transaction detail (all legs + metadata). */
+export const getTransaction = (id: string) => api<Transaction>(`/transactions/${id}`);
+
+/** Runs the ledger-wide financial reconciliation and returns the report. */
+export const getReconciliation = () => api<ReconciliationReport>('/reconciliation');
 
 /**
  * Downloads a CSV export through the same client path as every other request

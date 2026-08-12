@@ -38,6 +38,8 @@ export interface AuditView extends Page<AuditEvent> {
   accountNumber: string;
   balance: string;
   asOf?: string;
+  from?: string;
+  to?: string;
 }
 
 export interface TransactionLeg {
@@ -56,6 +58,38 @@ export interface Transaction {
   metadata: Record<string, unknown>;
   postedAt: string;
   legs: TransactionLeg[];
+}
+
+/** One row of the global activity feed. */
+export interface FeedTransaction {
+  id: string;
+  type: string;
+  status: string;
+  reference: string | null;
+  description: string | null;
+  postedAt: string;
+  legs: {
+    accountId: string;
+    accountNumber: string;
+    accountName: string;
+    direction: 'debit' | 'credit';
+    amount: string;
+    currency: string;
+  }[];
+}
+
+export interface ReconciliationIssue {
+  type: string;
+  transactionId?: string;
+  accountId?: string;
+  message: string;
+}
+
+export interface ReconciliationReport {
+  generatedAt: string;
+  checked: { transactions: number; accounts: number };
+  issues: ReconciliationIssue[];
+  passed: boolean;
 }
 
 /** One row of `GET /accounts/:id/transactions` (per-transaction leg summary). */
