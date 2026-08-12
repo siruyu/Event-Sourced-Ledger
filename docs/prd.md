@@ -3,7 +3,7 @@
 | | |
 |---|---|
 | **Project** | Event-Sourced Ledger (Double-Entry Bank Core) |
-| **Status** | Draft — v1.0 |
+| **Status** | Released — v1.0 |
 | **Date** | 2026-08-09 |
 | **Doc type** | Product Requirements Document |
 | **Related docs** | [`architecture.md`](./architecture.md), [`ticket.md`](./ticket.md) |
@@ -211,19 +211,27 @@ during launch · **Nice** = stretch / nice-to-have.
 
 ## 10. MVP scope (definition of launch)
 
-The MVP = every **Must** feature (F1–F11). Concretely, launch delivers:
+The MVP = every **Must** feature (F1–F11). **v1.0 delivers every priority tier:** Must
+(F1–F11), Should (F12–F20: idempotency, reversals, freeze/close, pagination, OpenAPI,
+observability, reconciliation), and Nice (F21–F22 and the F18/F19 stretch goals:
+snapshots, multi-currency + FX, web UI, auth + rate limiting, CSV export, account-aggregate
+event sourcing). Concretely, launch delivers:
 
 - PostgreSQL schema with `accounts`, `transactions`, `entries` (append-only event stream),
-  and migrations.
-- REST API: account create/list/get, deposit, withdrawal, transfer, balance (current +
-  point-in-time), audit trail, structured errors.
+  `account_events`, `snapshots`, and migrations.
+- REST API: account create/list/get (+ lifecycle, limit changes, status history), deposit,
+  withdrawal, transfer (+ FX), balance (current + point-in-time), audit trail (+ statement
+  ranges), global transaction feed, reconciliation, CSV exports, structured errors,
+  idempotency references, and transaction voiding.
 - Atomic invariant enforcement (overdraft rejection), double-entry validation, and
   concurrency-safe transfers (no lost updates).
+- API-key auth + per-key rate limiting (off by default for local dev).
+- A React + Vite web console (dashboard, accounts, activity feed, reports, settings,
+  account detail) styled as a tactical telemetry terminal.
 - Automated test suite proving the core invariants (including a concurrent-transfer stress
-  test) and a CI pipeline.
+  test), ≥80% branch coverage enforced in CI, and a CI pipeline (backend + web).
 
-Not in MVP: idempotency UX polish, reversals, freeze/close, pagination, OpenAPI, UI, FX,
-snapshots, auth. These land as **Should**/**Nice** tickets immediately after.
+Not in MVP: regulatory features, payment rails, consumer banking — see §4 and §12.
 
 ---
 
@@ -248,3 +256,6 @@ snapshots, auth. These land as **Should**/**Nice** tickets immediately after.
 | **Post-MVP (Should)** | Idempotency keys, reversals/voiding, freeze/close lifecycle, pagination + filters, OpenAPI docs, observability |
 | **Stretch (Nice)** | Snapshots, multi-currency + FX transfers, web UI, auth + rate limiting, CSV export |
 | **Beyond** | Regulatory reporting, payment-rail integrations, consumer app, horizontal sharding |
+
+> **v1.0 status (2026-08-12):** every ticket in the Post-MVP and Stretch rows above is
+> implemented and shipped (T-15 … T-26). See [`ticket.md`](./ticket.md).

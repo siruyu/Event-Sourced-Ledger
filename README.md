@@ -4,6 +4,10 @@ Model money the way real banks do: as an **immutable stream of events**, never m
 balances. Built with event sourcing, double-entry accounting, and atomic invariant
 enforcement.
 
+> **v1.0** — all 27 tickets shipped (MVP Must + Should + Nice, incl. snapshots, FX, web UI,
+> auth, CSV, and account-aggregate event sourcing). CI enforces ≥80% branch coverage and
+> builds both the API and web console.
+
 ## Documentation
 
 - [PRD](./docs/prd.md) — what it does, who it's for, feature priorities, user flows
@@ -71,10 +75,16 @@ and includes a concurrency stress test proving "no lost updates" under parallel 
 | `POST` | `/accounts/:id/deposits` | Deposit |
 | `POST` | `/accounts/:id/withdrawals` | Withdraw |
 | `POST` | `/transfers` | Atomic transfer |
-| `GET` | `/accounts/:id/audit?as_of=` | Audit trail / balance reconstruction |
+| `GET` | `/transactions?type=&status=&cursor=` | Global activity feed (newest-first) |
+| `GET` | `/transactions?reference=` | Lookup a transaction by idempotency reference |
+| `POST` | `/transactions/:id/void` | Void a posted transaction (posts a reversal) |
+| `PATCH` | `/accounts/:id/status` | Freeze / reactivate / close an account |
+| `PATCH` | `/accounts/:id/limit` | Change the overdraft limit (`limit_changed` event) |
+| `GET` | `/accounts/:id/audit?as_of=&from=&to=` | Audit trail / balance reconstruction / statement range |
 | `GET` | `/accounts/:id/status-history` | Account lifecycle history (rebuilt from `account_events`) |
 | `GET` | `/accounts/:id/transactions.csv` | CSV export of an account's transactions |
 | `GET` | `/accounts/:id/audit.csv` | CSV export of an account's audit trail |
+| `GET` | `/reconciliation` | On-demand ledger-wide reconciliation check |
 
 ## Design guarantees
 
@@ -93,3 +103,8 @@ and includes a concurrency stress test proving "no lost updates" under parallel 
   caller-supplied `fx_rate`, convert with deterministic half-up rounding, record the rate in
   transaction metadata and the audit trail, and stay double-entry balanced in a common
   currency. Each currency has its own internal cash vault account.
+- **Account-aggregate event sourcing** — lifecycle (`account_opened`, `frozen`, `closed`,
+  `limit_changed`) lives on the same append-only pattern; the `accounts` row is a projection
+  rebuilt by replay.
+- **Reconciliation** — `GET /reconciliation` re-derives the whole ledger from raw SQL and
+  reports any unbalanced transaction, sequence gap, or below-limit balance (expect zero).

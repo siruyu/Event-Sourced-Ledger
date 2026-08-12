@@ -2,7 +2,7 @@
 
 | | |
 |---|---|
-| **Status** | Draft — v1.0 |
+| **Status** | Released — v1.0 |
 | **Date** | 2026-08-09 |
 | **Related docs** | [`prd.md`](./prd.md), [`architecture.md`](./architecture.md) |
 
@@ -584,7 +584,27 @@ extension and rounds out the learning goals.
 > transaction that updates the `accounts` row (the row is the denormalized projection).
 > `GET /accounts/:id/status-history` rebuilds the history by replaying the stream, and
 > `AccountEventService.projectAccount` proves the stored row is reproducible from events.
-> `limit_changed` is a reserved event type for the (future) limit-change endpoint.
+> `PATCH /accounts/:id/limit` (T-27) records a `limit_changed` event on the same stream.
+
+---
+
+## T-27 — Global feed, statement ranges & limit changes
+
+**Priority:** Nice-to-have
+**Dependencies:** T-10, T-18, T-26
+
+**Description**
+Round out the read + lifecycle surface for the web console: `PATCH /accounts/:id/limit`
+(records a `limit_changed` account event), `from`/`to` range params on the audit endpoint to
+produce printable statements, and a global `GET /transactions` feed across all accounts
+(newest-first with type/status filters and opaque cursor pagination).
+
+**Acceptance criteria**
+- [x] `PATCH /accounts/:id/limit` changes the overdraft limit and appends `limit_changed` (visible in status history)
+- [x] `GET /accounts/:id/audit?from=&to=` returns a bounded statement window with correct running balances
+- [x] `GET /transactions` returns the global feed, newest-first, with optional `type`/`status` filters
+- [x] Feed using a `(postedAt, id)` cursor so equal timestamps never overlap
+- [x] Integration tests cover feed, statement range, and limit change (`test/integration/feed.api.spec.ts`)
 
 ---
 
@@ -599,7 +619,7 @@ T-01 Scaffolding
                       └─► T-11 Error contract ──► T-13 Logging ──► T-10 Audit
 
 Should-have:  T-15 (needs T-07) → T-16 (needs T-15) → T-17 (needs T-08) → T-18 → T-19 → T-20
-Nice-to-have: T-21 → T-22 (long-term) · T-23 (needs core) · T-24 · T-25 · T-26
+Nice-to-have: T-21 → T-22 (long-term) · T-23 (needs core) · T-24 · T-25 · T-26 · T-27
 ```
 
 **Suggested build order (MVP):**
