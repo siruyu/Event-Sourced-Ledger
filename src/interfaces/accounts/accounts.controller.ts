@@ -23,8 +23,10 @@ import {
   pageRefSchema,
 } from '@/common/swagger/contract';
 import {
+  accountsListQuerySchema,
   createAccountSchema,
   updateStatusSchema,
+  type AccountsListQuery,
   type CreateAccountDto,
   type UpdateStatusDto,
 } from './accounts.dto';
@@ -58,13 +60,18 @@ export class AccountsController {
   @ApiQuery({ name: 'limit', required: false, schema: { type: 'integer', minimum: 1, maximum: 100, default: 20 } })
   @ApiQuery({ name: 'cursor', required: false, description: 'Opaque pagination cursor' })
   @ApiResponse({ status: 200, description: 'Page of accounts', schema: pageRefSchema(accountRef) })
-  list(@Query(new ZodValidationPipe(listQuerySchema)) query: ListQuery): Promise<Page<AccountView>> {
+  list(
+    @Query(new ZodValidationPipe(accountsListQuerySchema)) query: AccountsListQuery,
+  ): Promise<Page<AccountView>> {
     const decoded = decodeCursor(query.cursor);
     const cursor =
       decoded && typeof decoded.createdAt === 'string' && typeof decoded.id === 'string'
         ? { createdAt: decoded.createdAt, id: decoded.id }
         : null;
-    return this.accounts.listPage(cursor, query.limit ?? 20);
+    return this.accounts.listPage(cursor, query.limit ?? 20, {
+      status: query.status,
+      type: query.type,
+    });
   }
 
   @Patch(':id/status')

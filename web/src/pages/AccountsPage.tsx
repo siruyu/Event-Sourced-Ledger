@@ -2,15 +2,28 @@ import { useState } from 'react';
 import { Link } from 'react-router-dom';
 import { useQuery } from '@tanstack/react-query';
 import { ChevronRight, Plus } from 'lucide-react';
-import { listAccounts } from '@/api/accounts';
-import { Badge, EmptyState, ErrorState, Spinner } from '@/components/ui';
+import { listAccounts, type AccountListParams } from '@/api/accounts';
+import type { Account } from '@/api/types';
+import { Badge, EmptyState, ErrorState, Select, Spinner } from '@/components/ui';
 import { formatAmount } from '@/lib/format';
 
-const statusTone = { active: 'success', frozen: 'danger', closed: 'neutral' } as const;
+const statusTone: Record<Account['status'], 'success' | 'danger' | 'neutral'> = {
+  active: 'success',
+  frozen: 'danger',
+  closed: 'neutral',
+};
+
+const ACCOUNT_TYPES = ['checking', 'savings', 'credit_card', 'cash', 'investment'] as const;
 
 export function AccountsPage({ onCreateAccount }: { onCreateAccount: () => void }) {
+  const [filters, setFilters] = useState<{ status?: Account['status']; type?: Account['type'] }>({});
   const [limit, setLimit] = useState(100);
-  const query = useQuery({ queryKey: ['accounts', { limit }], queryFn: () => listAccounts({ limit }) });
+
+  const params: AccountListParams = { limit, ...filters };
+  const query = useQuery({
+    queryKey: ['accounts', params],
+    queryFn: () => listAccounts(params),
+  });
 
   if (query.isLoading) {
     return (
@@ -43,8 +56,45 @@ export function AccountsPage({ onCreateAccount }: { onCreateAccount: () => void 
         </button>
       </div>
 
+      <div className="flex flex-wrap items-center gap-3">
+        <label className="flex items-center gap-2 text-sm text-slate-600">
+          <span className="font-medium">Status</span>
+          <Select
+            value={filters.status ?? ''}
+            onChange={(e) =>
+              setFilters((f) => ({ ...f, status: (e.target.value || undefined) as Account['status'] | undefined }))
+            }
+            className="w-36"
+            aria-label="Filter by status"
+          >
+            <option value="">All</option>
+            <option value="active">Active</option>
+            <option value="frozen">Frozen</option>
+            <option value="closed">Closed</option>
+          </Select>
+        </label>
+        <label className="flex items-center gap-2 text-sm text-slate-600">
+          <span className="font-medium">Type</span>
+          <Select
+            value={filters.type ?? ''}
+            onChange={(e) =>
+              setFilters((f) => ({ ...f, type: (e.target.value || undefined) as Account['type'] | undefined }))
+            }
+            className="w-40"
+            aria-label="Filter by type"
+          >
+            <option value="">All</option>
+            {ACCOUNT_TYPES.map((t) => (
+              <option key={t} value={t}>
+                {t}
+              </option>
+            ))}
+          </Select>
+        </label>
+      </div>
+
       {accounts.length === 0 ? (
-        <EmptyState title="No accounts yet" hint="Create your first account to start moving money." />
+        <EmptyState title="No accounts match" hint="Adjust the filters or create an account." />
       ) : (
         <>
           <ul className="grid grid-cols-1 gap-4 sm:grid-cols-2 xl:grid-cols-3">
@@ -66,7 +116,7 @@ export function AccountsPage({ onCreateAccount }: { onCreateAccount: () => void 
                       {formatAmount(a.balance, a.currency)}
                     </p>
                     <div className="flex shrink-0 flex-wrap justify-end gap-1.5">
-                      <Badge tone={statusTone[a.status as keyof typeof statusTone] ?? 'neutral'}>{a.status}</Badge>
+                      <Badge tone={statusTone[a.status]}>{a.status}</Badge>
                       <Badge tone="brand">{a.type}</Badge>
                     </div>
                   </div>

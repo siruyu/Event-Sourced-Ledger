@@ -80,3 +80,11 @@ export interface TransferInput {
   description?: string;
   fxRate?: string;
 }
+
+export interface StatusHistoryItem {
+  seq: number;
+  type: string;
+  createdAt: string;
+  reason?: string;
+  resultingStatus: 'active' | 'frozen' | 'closed';
+}

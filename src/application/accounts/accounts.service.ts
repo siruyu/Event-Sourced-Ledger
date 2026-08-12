@@ -1,7 +1,7 @@
 import { Injectable } from '@nestjs/common';
 import { randomUUID } from 'crypto';
 import { encodeCursor, type Page } from '@/common/cursor';
-import { DEFAULT_NORMAL_SIDE, generateAccountNumber } from '@/domain/account';
+import { DEFAULT_NORMAL_SIDE, generateAccountNumber, type AccountType } from '@/domain/account';
 import { AccountNotFoundError, InvalidTransactionError } from '@/domain/errors';
 import { Money } from '@/domain/money';
 import type { NewAccount } from '../../../db/schema';
@@ -52,8 +52,9 @@ export class AccountsService {
   async listPage(
     cursor: { createdAt: string; id: string } | null,
     limit: number,
+    filters?: { status?: 'active' | 'frozen' | 'closed'; type?: AccountType },
   ): Promise<Page<AccountView>> {
-    const rows = await this.accounts.paginate(cursor, limit);
+    const rows = await this.accounts.paginate(cursor, limit, filters);
     const hasMore = rows.length > limit;
     const pageRows = hasMore ? rows.slice(0, limit) : rows;
 

@@ -1,10 +1,28 @@
 import { api, post } from './client';
-import type { Account, AuditView, CreateAccountInput, MovementInput, Page, Transaction, TransferInput } from './types';
+import type {
+  Account,
+  AuditView,
+  CreateAccountInput,
+  MovementInput,
+  Page,
+  StatusHistoryItem,
+  Transaction,
+  TransferInput,
+} from './types';
 
-export const listAccounts = (params: { cursor?: string; limit?: number } = {}) => {
+export interface AccountListParams {
+  cursor?: string;
+  limit?: number;
+  status?: Account['status'];
+  type?: Account['type'];
+}
+
+export const listAccounts = (params: AccountListParams = {}) => {
   const qs = new URLSearchParams();
   if (params.cursor) qs.set('cursor', params.cursor);
   if (params.limit) qs.set('limit', String(params.limit));
+  if (params.status) qs.set('status', params.status);
+  if (params.type) qs.set('type', params.type);
   const suffix = qs.toString();
   return api<Page<Account>>(`/accounts${suffix ? `?${suffix}` : ''}`);
 };
@@ -13,6 +31,26 @@ export const getAccount = (id: string) => api<Account>(`/accounts/${id}`);
 
 export const createAccount = (input: CreateAccountInput) =>
   post<Account>('/accounts', input);
+
+export const updateAccountStatus = (id: string, status: Account['status']) =>
+  api<Account>(`/accounts/${id}/status`, {
+    method: 'PATCH',
+    body: JSON.stringify({ status }),
+  });
+
+export const voidTransaction = (id: string) => post<Transaction>(`/transactions/${id}/void`, {});
+export const getStatusHistory = (id: string) => api<StatusHistoryItem[]>(`/accounts/${id}/status-history`);
+
+export const getAccountTransactions = (
+  id: string,
+  opts: { cursor?: string; limit?: number } = {},
+) => {
+  const params = new URLSearchParams();
+  if (opts.cursor) params.set('cursor', opts.cursor);
+  if (opts.limit) params.set('limit', String(opts.limit));
+  const qs = params.toString();
+  return api<Page<Transaction>>(`/accounts/${id}/transactions${qs ? `?${qs}` : ''}`);
+};
 
 export const getBalance = (id: string, asOf?: string) =>
   api<{ balance: string; currency: string; asOf?: string }>(
@@ -38,3 +76,20 @@ export const withdraw = (id: string, input: MovementInput) =>
   post<Transaction>(`/accounts/${id}/withdrawals`, input);
 
 export const transfer = (input: TransferInput) => post<Transaction>('/transfers', input);
+
+/** Browser-friendly download URL for a CSV export (opens a same-origin fetch). */
+export const getCsvUrl = (id: string, variant: 'transactions' | 'audit', asOf?: string) => {
+  const qs = new URLSearchParams();
+  if (asOf) qs.set('as_of', asOf);
+  const suffix = qs.toString();
+  return `/api/v1/accounts/${id}/${variant}.csv${suffix ? `?${suffix}` : ''}`;
+};
+
+export function downloadCsv(id: string, variant: 'transactions' | 'audit', asOf?: string): void {
+  const link = document.createElement('a');
+  link.href = getCsvUrl(id, variant, asOf);
+  link.download = `${variant}-${id.slice(0, 8)}.csv`;
+  document.body.appendChild(link);
+  link.click();
+  link.remove();
+}

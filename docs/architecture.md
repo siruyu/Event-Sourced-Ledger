@@ -407,7 +407,7 @@ numbers, to preserve precision.
 |---|---|---|
 | `GET` | `/health` | Liveness probe |
 | `POST` | `/accounts` | Create account → `201` |
-| `GET` | `/accounts` | List accounts (cursor pagination) + current balances |
+| `GET` | `/accounts?status=&type=&cursor=&limit=` | List accounts (cursor pagination) + current balances; status/type filters |
 | `GET` | `/accounts/:id` | Account detail + current balance |
 | `GET` | `/accounts/:id/balance?as_of=` | Current or point-in-time balance |
 | `GET` | `/accounts/:id/transactions` | Paginated transaction list for an account |

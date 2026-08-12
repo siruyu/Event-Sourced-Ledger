@@ -35,10 +35,39 @@ describe('Cursor pagination [T-18]', () => {
 
   const http = () => app.getHttpServer();
 
-  async function createAccount() {
+  async function createAccount(): Promise<{ id: string; name: string; type: string; status: string }> {
     const res = await request(http()).post('/api/v1/accounts').send({ name: 'Acct' }).expect(201);
     return res.body;
   }
+
+  it('filters by status and type and combines with pagination', async () => {
+    const checking = await createAccount(); // 'checking', active
+    void checking;
+    const savings = (
+      await request(http())
+        .post('/api/v1/accounts')
+        .send({ name: 'Savings-only', type: 'savings', currency: 'USD' })
+        .expect(201)
+    ).body as { id: string };
+    await request(http()).patch(`/api/v1/accounts/${savings.id}/status`).send({ status: 'frozen' }).expect(200);
+
+    const activeOnly = await request(http()).get('/api/v1/accounts?status=active').expect(200);
+    expect(activeOnly.body.items.length).toBeGreaterThan(0);
+    expect(activeOnly.body.items.every((a: { status: string }) => a.status === 'active')).toBe(true);
+
+    const savingsOnly = await request(http()).get('/api/v1/accounts?type=savings').expect(200);
+    expect(savingsOnly.body.items).toHaveLength(1);
+    expect(savingsOnly.body.items[0].name).toBe('Savings-only');
+
+    const frozenSavings = await request(http()).get('/api/v1/accounts?status=frozen&type=savings').expect(200);
+    expect(frozenSavings.body.items).toHaveLength(1);
+    expect(frozenSavings.body.items[0].name).toBe('Savings-only');
+  });
+
+  it('rejects an invalid status filter with 400 VALIDATION_ERROR', async () => {
+    const res = await request(http()).get('/api/v1/accounts?status=bogus').expect(400);
+    expect(res.body.error.code).toBe('VALIDATION_ERROR');
+  });
 
   it('paginates GET /accounts by keyset cursor with no overlap', async () => {
     for (let i = 0; i < 5; i++) await createAccount();

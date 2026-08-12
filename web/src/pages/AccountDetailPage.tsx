@@ -1,11 +1,14 @@
 import { useMemo, useState } from 'react';
 import { useParams, Link } from 'react-router-dom';
 import { useQuery } from '@tanstack/react-query';
-import { ArrowDownToLine, ArrowUpFromLine, ArrowRightLeft, ChevronLeft, Clock, Landmark } from 'lucide-react';
-import { getAccount, getAudit, getBalance } from '@/api/accounts';
+import { ArrowDownToLine, ArrowUpFromLine, ArrowRightLeft, ChevronLeft, Clock, Download, Landmark, Shield, RotateCcw } from 'lucide-react';
+import { downloadCsv, getAccount, getAudit, getBalance } from '@/api/accounts';
 import { Badge, Button, Card, EmptyState, ErrorState, Spinner } from '@/components/ui';
 import { MovementModal } from '@/components/forms/MovementModal';
 import { TransferModal } from '@/components/forms/TransferModal';
+import { ManageStatusModal } from '@/components/forms/ManageStatusModal';
+import { VoidModal } from '@/components/forms/VoidModal';
+import { StatusHistoryPanel } from '@/components/StatusHistoryPanel';
 import { formatAmount, formatDateTime, toLocalDateTimeInputValue } from '@/lib/format';
 
 const typeTone: Record<string, string> = {
@@ -23,7 +26,7 @@ function Dot({ className }: { className: string }) {
 export function AccountDetailPage() {
   const { id = '' } = useParams();
   const [asOf, setAsOf] = useState<string>();
-  const [modal, setModal] = useState<'deposit' | 'withdraw' | 'transfer' | null>(null);
+  const [modal, setModal] = useState<'deposit' | 'withdraw' | 'transfer' | 'status' | 'void' | null>(null);
 
   const accountQuery = useQuery({ queryKey: ['account', id], queryFn: () => getAccount(id) });
   const balanceQuery = useQuery({
@@ -63,17 +66,25 @@ export function AccountDetailPage() {
         </div>
       </div>
       <div className="flex flex-wrap gap-2.5">
-        <Button variant="secondary" onClick={() => setModal('deposit')}>
+        <Button variant="secondary" onClick={() => setModal('deposit')} disabled={account?.status !== 'active'}>
           <ArrowDownToLine className="h-4 w-4" aria-hidden="true" />
           Deposit
         </Button>
-        <Button variant="secondary" onClick={() => setModal('withdraw')}>
+        <Button variant="secondary" onClick={() => setModal('withdraw')} disabled={account?.status !== 'active'}>
           <ArrowUpFromLine className="h-4 w-4" aria-hidden="true" />
           Withdraw
         </Button>
-        <Button variant="secondary" onClick={() => setModal('transfer')}>
+        <Button variant="secondary" onClick={() => setModal('transfer')} disabled={account?.status !== 'active'}>
           <ArrowRightLeft className="h-4 w-4" aria-hidden="true" />
           Transfer
+        </Button>
+        <Button variant="secondary" onClick={() => setModal('void')}>
+          <RotateCcw className="h-4 w-4" aria-hidden="true" />
+          Void
+        </Button>
+        <Button variant="secondary" onClick={() => setModal('status')}>
+          <Shield className="h-4 w-4" aria-hidden="true" />
+          Manage status
         </Button>
       </div>
     </div>
@@ -103,6 +114,20 @@ export function AccountDetailPage() {
 
       <Card className="space-y-4 p-5">
         {header}
+        {account.status !== 'active' ? (
+          <div
+            role="status"
+            className={`rounded-lg px-4 py-3 text-sm ${
+              account.status === 'frozen'
+                ? 'bg-amber-50 text-amber-800 ring-1 ring-inset ring-amber-200'
+                : 'bg-rose-50 text-rose-800 ring-1 ring-inset ring-rose-200'
+            }`}
+          >
+            {account.status === 'frozen'
+              ? 'This account is frozen — deposits, withdrawals, and transfers are blocked. Reads still work.'
+              : 'This account is closed and can no longer move money. The record is retained for audit.'}
+          </div>
+        ) : null}
         <div className="border-t border-slate-100 pt-4">
           <p className="text-xs font-medium uppercase tracking-wide text-slate-400">
             {asOf ? 'Balance as of' : 'Current balance'}
@@ -132,16 +157,30 @@ export function AccountDetailPage() {
       <Card className="p-5">
         <div className="flex flex-wrap items-center justify-between gap-4">
           <h2 className="text-base font-semibold text-slate-900">Audit trail</h2>
-          <label className="flex min-h-[44px] items-center gap-2 text-sm text-slate-600">
-            <Clock className="h-4 w-4 text-slate-400" aria-hidden="true" />
-            <span className="sr-only">Point in time</span>
-            <input
-              type="datetime-local"
-              value={asOf ? toLocalDateTimeInputValue(asOf) : ''}
-              onChange={(e) => setAsOf(e.target.value ? new Date(e.target.value).toISOString() : undefined)}
-              className="rounded-lg border border-slate-300 bg-white px-3 py-2 text-sm text-slate-900 focus:border-brand-500 focus:outline-none focus:ring-2 focus:ring-brand-500/20"
-            />
-          </label>
+          <div className="flex flex-wrap items-center gap-3">
+            <div className="flex gap-2">
+              <Button variant="secondary" onClick={() => downloadCsv(account.id, 'transactions', asOf)}>
+                <Download className="h-4 w-4" aria-hidden="true" />
+                <span className="hidden sm:inline">Transactions CSV</span>
+                <span className="sm:hidden">CSV</span>
+              </Button>
+              <Button variant="secondary" onClick={() => downloadCsv(account.id, 'audit', asOf)}>
+                <Download className="h-4 w-4" aria-hidden="true" />
+                <span className="hidden sm:inline">Audit CSV</span>
+                <span className="sm:hidden">Audit</span>
+              </Button>
+            </div>
+            <label className="flex min-h-[44px] items-center gap-2 text-sm text-slate-600">
+              <Clock className="h-4 w-4 text-slate-400" aria-hidden="true" />
+              <span className="sr-only">Point in time</span>
+              <input
+                type="datetime-local"
+                value={asOf ? toLocalDateTimeInputValue(asOf) : ''}
+                onChange={(e) => setAsOf(e.target.value ? new Date(e.target.value).toISOString() : undefined)}
+                className="rounded-lg border border-slate-300 bg-white px-3 py-2 text-sm text-slate-900 focus:border-brand-500 focus:outline-none focus:ring-2 focus:ring-brand-500/20"
+              />
+            </label>
+          </div>
         </div>
 
         <div className="mt-4">
@@ -174,6 +213,9 @@ export function AccountDetailPage() {
                     </div>
                     <p className="mt-0.5 text-sm text-slate-700">{item.explanation}</p>
                     <div className="mt-0.5 flex flex-wrap gap-x-4 gap-y-0.5 text-xs text-slate-500">
+                      {item.reference ? (
+                        <span className="font-mono">ref: {item.reference}</span>
+                      ) : null}
                       {item.counterparty ? (
                         <span>
                           Counterparty: {item.counterparty.name} ({item.counterparty.accountNumber})
@@ -195,6 +237,10 @@ export function AccountDetailPage() {
       {modal === 'deposit' ? <MovementModal accountId={account.id} currency={account.currency} kind="deposit" onClose={() => setModal(null)} /> : null}
       {modal === 'withdraw' ? <MovementModal accountId={account.id} currency={account.currency} kind="withdraw" onClose={() => setModal(null)} /> : null}
       {modal === 'transfer' ? <TransferModal defaultFromId={account.id} onClose={() => setModal(null)} /> : null}
+      {modal === 'status' ? <ManageStatusModal account={account} onClose={() => setModal(null)} /> : null}
+      {modal === 'void' ? <VoidModal accountId={account.id} onClose={() => setModal(null)} /> : null}
+
+      <StatusHistoryPanel accountId={account.id} />
     </div>
   );
 }

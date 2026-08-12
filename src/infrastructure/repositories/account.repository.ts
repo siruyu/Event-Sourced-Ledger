@@ -1,9 +1,10 @@
 import { Inject, Injectable } from '@nestjs/common';
-import { asc, eq, inArray, sql } from 'drizzle-orm';
+import { and, asc, eq, inArray, sql, type SQL } from 'drizzle-orm';
 import { DRIZZLE_DB, type Database } from '@/infrastructure/db/providers';
 import { type SqlExecutor } from '@/infrastructure/db/tx-runner';
 import { accounts, type NewAccount } from '../../../db/schema';
 import { type AccountRow } from '@/infrastructure/types';
+import type { AccountType } from '@/domain/account';
 
 export interface LockedAccount {
   id: string;
@@ -78,25 +79,30 @@ export class AccountRepository {
     return (rows[0] as AccountRow | undefined) ?? null;
   }
 
-  /**
+/**
    * Keyset pagination over accounts, sorted by (created_at, id). The cursor's
    * createdAt is the raw DB timestamp (microsecond precision) so the boundary
-   * comparison is exact — no rows are skipped or repeated.
+   * comparison is exact - no rows are skipped or repeated. Optional status/type
+   * filters combine with the cursor (T-18).
    */
   async paginate(
     cursor: { createdAt: string; id: string } | null,
     limit: number,
+    filters?: { status?: 'active' | 'frozen' | 'closed'; type?: AccountType },
   ): Promise<AccountRow[]> {
-    const condition = cursor
-      ? sql`(${accounts.createdAt} > ${cursor.createdAt}::timestamptz
+    const conditions: SQL[] = [];
+    if (cursor) {
+      conditions.push(sql`(${accounts.createdAt} > ${cursor.createdAt}::timestamptz
              OR (${accounts.createdAt} = ${cursor.createdAt}::timestamptz
-                 AND ${accounts.id} > ${cursor.id}::uuid))`
-      : undefined;
+                 AND ${accounts.id} > ${cursor.id}::uuid))`);
+    }
+    if (filters?.status) conditions.push(eq(accounts.status, filters.status));
+    if (filters?.type) conditions.push(eq(accounts.type, filters.type));
 
     const rows = await this.db
       .select()
       .from(accounts)
-      .where(condition)
+      .where(conditions.length ? and(...conditions) : undefined)
       .orderBy(asc(accounts.createdAt), asc(accounts.id))
       .limit(limit + 1);
 
