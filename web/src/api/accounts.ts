@@ -1,6 +1,7 @@
-import { api, post } from './client';
+import { api, ApiError, getApiKey, post } from './client';
 import type {
   Account,
+  AccountTransactionItem,
   AuditView,
   CreateAccountInput,
   MovementInput,
@@ -49,7 +50,7 @@ export const getAccountTransactions = (
   if (opts.cursor) params.set('cursor', opts.cursor);
   if (opts.limit) params.set('limit', String(opts.limit));
   const qs = params.toString();
-  return api<Page<Transaction>>(`/accounts/${id}/transactions${qs ? `?${qs}` : ''}`);
+  return api<Page<AccountTransactionItem>>(`/accounts/${id}/transactions${qs ? `?${qs}` : ''}`);
 };
 
 export const getBalance = (id: string, asOf?: string) =>
@@ -77,19 +78,40 @@ export const withdraw = (id: string, input: MovementInput) =>
 
 export const transfer = (input: TransferInput) => post<Transaction>('/transfers', input);
 
-/** Browser-friendly download URL for a CSV export (opens a same-origin fetch). */
-export const getCsvUrl = (id: string, variant: 'transactions' | 'audit', asOf?: string) => {
+/**
+ * Downloads a CSV export through the same client path as every other request
+ * (so the configured API key header is attached) and triggers a browser
+ * download. Throws ApiError when the export fails.
+ */
+export async function downloadCsv(
+  id: string,
+  variant: 'transactions' | 'audit',
+  asOf?: string,
+): Promise<void> {
   const qs = new URLSearchParams();
   if (asOf) qs.set('as_of', asOf);
   const suffix = qs.toString();
-  return `/api/v1/accounts/${id}/${variant}.csv${suffix ? `?${suffix}` : ''}`;
-};
+  const url = `/api/v1/accounts/${id}/${variant}.csv${suffix ? `?${suffix}` : ''}`;
 
-export function downloadCsv(id: string, variant: 'transactions' | 'audit', asOf?: string): void {
+  const headers: Record<string, string> = {};
+  const key = getApiKey();
+  if (key) headers['x-api-key'] = key;
+
+  const res = await fetch(url, { headers });
+  if (!res.ok) {
+    const body = (await res.json().catch(() => null)) as { error?: { code?: string; message?: string } } | null;
+    throw new ApiError(res.status, {
+      code: body?.error?.code ?? `HTTP_${res.status}`,
+      message: body?.error?.message ?? `CSV export failed (${res.status})`,
+    });
+  }
+
+  const blob = await res.blob();
   const link = document.createElement('a');
-  link.href = getCsvUrl(id, variant, asOf);
+  link.href = URL.createObjectURL(blob);
   link.download = `${variant}-${id.slice(0, 8)}.csv`;
   document.body.appendChild(link);
   link.click();
   link.remove();
+  URL.revokeObjectURL(link.href);
 }

@@ -1,31 +1,41 @@
-import { useState } from 'react';
+import { useMemo, useState } from 'react';
 import { useQuery, useQueryClient, useMutation } from '@tanstack/react-query';
 import { getAccountTransactions, voidTransaction } from '@/api/accounts';
+import type { AccountTransactionItem } from '@/api/types';
 import { ApiError } from '@/api/client';
 import { Button, EmptyState, ErrorState, Modal, Spinner, useToast } from '@/components/ui';
 import { formatAmount, formatDateTime } from '@/lib/format';
 
-export function VoidModal({
-  accountId,
-  onClose,
-}: {
-  accountId: string;
-  onClose: () => void;
-}) {
+/** Pages through the account's transactions to find the truly latest posted. */
+async function collectTransactions(id: string): Promise<AccountTransactionItem[]> {
+  const items: AccountTransactionItem[] = [];
+  let cursor: string | undefined;
+  for (let i = 0; i < 100; i++) {
+    const page = await getAccountTransactions(id, { cursor, limit: 100 });
+    items.push(...page.items);
+    cursor = page.nextCursor;
+    if (!cursor) break;
+  }
+  return items;
+}
+
+export function VoidModal({ accountId, onClose }: { accountId: string; onClose: () => void }) {
   const toast = useToast();
   const qc = useQueryClient();
   const [error, setError] = useState<string>();
 
   const txQuery = useQuery({
     queryKey: ['account-transactions', accountId],
-    queryFn: () => getAccountTransactions(accountId, { limit: 10 }),
+    queryFn: () => collectTransactions(accountId),
   });
 
-  const posted = (txQuery.data?.items ?? []).filter((t) => t.status === 'posted');
-  const latest = posted[posted.length - 1];
+  const latest = useMemo(
+    () => (txQuery.data ?? []).filter((t) => t.status === 'posted').at(-1),
+    [txQuery.data],
+  );
 
   const mutation = useMutation({
-    mutationFn: () => voidTransaction(latest.id),
+    mutationFn: () => voidTransaction(latest!.transactionId),
     onSuccess: () => {
       toast('success', 'Transaction voided — a reversal was posted');
       void qc.invalidateQueries({ queryKey: ['accounts'] });
@@ -85,15 +95,10 @@ export function VoidModal({
                 <dt className="text-slate-500">Type</dt>
                 <dd className="font-medium capitalize text-slate-900">{latest.type}</dd>
               </div>
-              {(() => {
-                const leg = (latest.legs ?? []).find((l) => l.accountId === accountId);
-                return leg ? (
-                  <div className="flex justify-between gap-4 py-0.5">
-                    <dt className="text-slate-500">Amount</dt>
-                    <dd className="tabular-nums text-slate-900">{formatAmount(leg.amount, leg.currency)}</dd>
-                  </div>
-                ) : null;
-              })()}
+              <div className="flex justify-between gap-4 py-0.5">
+                <dt className="text-slate-500">Amount</dt>
+                <dd className="tabular-nums text-slate-900">{formatAmount(latest.amount, latest.currency)}</dd>
+              </div>
               <div className="flex justify-between gap-4 py-0.5">
                 <dt className="text-slate-500">Posted</dt>
                 <dd className="tabular-nums text-slate-900">{formatDateTime(latest.postedAt)}</dd>

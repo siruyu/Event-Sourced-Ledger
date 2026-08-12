@@ -58,6 +58,20 @@ export interface Transaction {
   legs: TransactionLeg[];
 }
 
+/** One row of `GET /accounts/:id/transactions` (per-transaction leg summary). */
+export interface AccountTransactionItem {
+  seq: number;
+  transactionId: string;
+  type: string;
+  status: string;
+  reference: string | null;
+  description: string | null;
+  direction: 'debit' | 'credit';
+  amount: string;
+  currency: string;
+  postedAt: string;
+}
+
 export interface CreateAccountInput {
   name: string;
   type?: string;

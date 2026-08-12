@@ -3,7 +3,8 @@ import { useParams, Link } from 'react-router-dom';
 import { useQuery } from '@tanstack/react-query';
 import { ArrowDownToLine, ArrowUpFromLine, ArrowRightLeft, ChevronLeft, Clock, Download, Landmark, Shield, RotateCcw } from 'lucide-react';
 import { downloadCsv, getAccount, getAudit, getBalance } from '@/api/accounts';
-import { Badge, Button, Card, EmptyState, ErrorState, Spinner } from '@/components/ui';
+import { ApiError } from '@/api/client';
+import { Badge, Button, Card, EmptyState, ErrorState, Spinner, useToast } from '@/components/ui';
 import { MovementModal } from '@/components/forms/MovementModal';
 import { TransferModal } from '@/components/forms/TransferModal';
 import { ManageStatusModal } from '@/components/forms/ManageStatusModal';
@@ -27,6 +28,13 @@ export function AccountDetailPage() {
   const { id = '' } = useParams();
   const [asOf, setAsOf] = useState<string>();
   const [modal, setModal] = useState<'deposit' | 'withdraw' | 'transfer' | 'status' | 'void' | null>(null);
+  const toast = useToast();
+
+  const onExport = (variant: 'transactions' | 'audit') => {
+    void downloadCsv(id, variant, asOf).catch((err) => {
+      toast('error', err instanceof ApiError ? err.message : 'CSV export failed');
+    });
+  };
 
   const accountQuery = useQuery({ queryKey: ['account', id], queryFn: () => getAccount(id) });
   const balanceQuery = useQuery({
@@ -159,12 +167,12 @@ export function AccountDetailPage() {
           <h2 className="text-base font-semibold text-slate-900">Audit trail</h2>
           <div className="flex flex-wrap items-center gap-3">
             <div className="flex gap-2">
-              <Button variant="secondary" onClick={() => downloadCsv(account.id, 'transactions', asOf)}>
+              <Button variant="secondary" onClick={() => onExport('transactions')}>
                 <Download className="h-4 w-4" aria-hidden="true" />
                 <span className="hidden sm:inline">Transactions CSV</span>
                 <span className="sm:hidden">CSV</span>
               </Button>
-              <Button variant="secondary" onClick={() => downloadCsv(account.id, 'audit', asOf)}>
+              <Button variant="secondary" onClick={() => onExport('audit')}>
                 <Download className="h-4 w-4" aria-hidden="true" />
                 <span className="hidden sm:inline">Audit CSV</span>
                 <span className="sm:hidden">Audit</span>
