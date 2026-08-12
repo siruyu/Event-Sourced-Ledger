@@ -3,7 +3,7 @@ import { Link } from 'react-router-dom';
 import { useQuery } from '@tanstack/react-query';
 import { ArrowRight, Landmark, Star, Wallet } from 'lucide-react';
 import { getTransactionsFeed, listAccounts } from '@/api/accounts';
-import { Badge, Card, ErrorState, Spinner } from '@/components/ui';
+import { Badge, Card, ErrorState, PageHeader, Spinner } from '@/components/ui';
 import { formatAmount, formatDateTime } from '@/lib/format';
 import { getSettings } from '@/lib/settings';
 
@@ -14,11 +14,11 @@ const statusTone: Record<string, 'success' | 'danger' | 'neutral'> = {
 };
 
 const txTone: Record<string, string> = {
-  deposit: 'bg-emerald-50 text-emerald-700 ring-emerald-200',
-  withdrawal: 'bg-rose-50 text-rose-700 ring-rose-200',
-  transfer: 'bg-brand-50 text-brand-700 ring-brand-200',
-  reversal: 'bg-amber-50 text-amber-700 ring-amber-200',
-  fee: 'bg-slate-100 text-slate-700 ring-slate-200',
+  deposit: 'border-emerald-500/50 text-emerald-500',
+  withdrawal: 'border-rose-500/50 text-rose-500',
+  transfer: 'border-brand-600 text-slate-200',
+  reversal: 'border-amber-500/50 text-amber-500',
+  fee: 'border-slate-600 text-slate-500',
 };
 
 export function DashboardPage() {
@@ -55,17 +55,16 @@ export function DashboardPage() {
 
   return (
     <div className="space-y-6">
-      <div className="flex flex-wrap items-end justify-between gap-4">
-        <div>
-          <h1 className="text-2xl font-semibold tracking-tight text-slate-900">Dashboard</h1>
-          <p className="mt-1 text-sm text-slate-500">A live view of the whole ledger, derived from the immutable event log.</p>
-        </div>
-      </div>
+      <PageHeader
+        index="01"
+        title="Dashboard"
+        meta="LIVE VIEW // EVENT-SOURCED LEDGER"
+      />
 
-      <div className="grid grid-cols-1 gap-4 sm:grid-cols-2 xl:grid-cols-4">
+      <div className="t-grid-lines grid grid-cols-1 sm:grid-cols-2 xl:grid-cols-4">
         <Card className="p-4">
-          <p className="text-xs font-medium uppercase tracking-wide text-slate-400">Accounts</p>
-          <p className="mt-1 text-2xl font-semibold tabular-nums text-slate-900">{stats.total}</p>
+          <p className="tech-label">Accounts</p>
+          <p className="mt-1 text-2xl font-semibold tabular text-slate-900 glow-readout">{stats.total}</p>
           <p className="mt-0.5 text-xs text-slate-500">
             {Object.entries(stats.byStatus)
               .filter(([, n]) => n > 0)
@@ -75,7 +74,7 @@ export function DashboardPage() {
         </Card>
 
         <Card className="p-4">
-          <p className="text-xs font-medium uppercase tracking-wide text-slate-400">Balances by currency</p>
+          <p className="tech-label">Balances by currency</p>
           <ul className="mt-1 space-y-1">
             {[...stats.byCurrency.entries()]
               .sort(([a], [b]) => {
@@ -97,20 +96,20 @@ export function DashboardPage() {
         </Card>
 
         <Card className="p-4">
-          <p className="text-xs font-medium uppercase tracking-wide text-slate-400">By type</p>
+          <p className="tech-label">By type</p>
           <ul className="mt-1 space-y-1">
             {[...stats.byType.entries()].map(([t, n]) => (
               <li key={t} className="flex items-center justify-between gap-2 text-sm">
                 <span className="text-slate-700">{t}</span>
-                <span className="tabular-nums text-slate-900">{n}</span>
+                <span className="tabular text-slate-900">{n}</span>
               </li>
             ))}
           </ul>
         </Card>
 
         <Card className="p-4">
-          <p className="text-xs font-medium uppercase tracking-wide text-slate-400">Attention needed</p>
-          <p className="mt-1 text-2xl font-semibold tabular-nums text-slate-900">
+          <p className="tech-label">Attention needed</p>
+          <p className="mt-1 text-2xl font-semibold tabular text-slate-900 glow-red">
             {(stats.byStatus.frozen ?? 0) + (stats.byStatus.closed ?? 0)}
           </p>
           <Link
@@ -124,7 +123,7 @@ export function DashboardPage() {
 
       <Card className="p-5">
         <div className="flex items-center justify-between gap-3">
-          <h2 className="flex items-center gap-2 text-base font-semibold text-slate-900">
+          <h2 className="flex items-center gap-2 macro-section">
             <Landmark className="h-4 w-4 text-slate-400" aria-hidden="true" />
             Recent activity
           </h2>
@@ -144,11 +143,11 @@ export function DashboardPage() {
           ) : feedQuery.isError ? (
             <ErrorState message="Could not load recent activity." onRetry={() => void feedQuery.refetch()} />
           ) : feedQuery.data && feedQuery.data.items.length > 0 ? (
-            <ul className="divide-y divide-slate-100">
+            <ul className="divide-y divide-slate-200">
               {feedQuery.data.items.map((t) => (
                 <li key={t.id} className="flex flex-wrap items-center justify-between gap-3 py-2.5">
                   <div className="flex min-w-0 items-center gap-3">
-                    <span className={`inline-flex items-center rounded-md px-1.5 py-0.5 text-[11px] font-semibold uppercase tracking-wide ring-1 ring-inset ${txTone[t.type] ?? txTone.fee}`}>
+                    <span className={`inline-flex items-center border px-1.5 py-0.5 text-[10px] font-semibold uppercase tracking-[0.08em] ${txTone[t.type] ?? txTone.fee}`}>
                       {t.type}
                     </span>
                     <span className="truncate text-sm text-slate-700">
@@ -157,13 +156,13 @@ export function DashboardPage() {
                   </div>
                   <div className="flex items-center gap-3 text-sm">
                     <Badge tone={statusTone[t.status] ?? 'neutral'}>{t.status}</Badge>
-                    <span className="tabular-nums text-slate-500">{formatDateTime(t.postedAt)}</span>
+                    <span className="tabular text-slate-500">{formatDateTime(t.postedAt)}</span>
                   </div>
                 </li>
               ))}
             </ul>
           ) : (
-            <p className="flex items-center gap-2 rounded-lg bg-slate-50 px-3 py-4 text-sm text-slate-500">
+            <p className="flex items-center gap-2 border border-slate-600 bg-slate-50 px-3 py-4 text-sm text-slate-500">
               <Wallet className="h-4 w-4" aria-hidden="true" />
               No activity yet — make a deposit or transfer to see it here.
             </p>

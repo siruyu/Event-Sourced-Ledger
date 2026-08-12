@@ -27,7 +27,7 @@ export function BalanceChart({ events, height = 160 }: { events: AuditEvent[]; h
 
   if (events.length < 2) {
     return (
-      <p className="rounded-lg bg-slate-50 px-3 py-4 text-center text-sm text-slate-500">
+      <p className="border border-slate-600 bg-slate-50 px-3 py-4 text-center font-mono text-sm text-slate-500">
         Add at least two entries to see a balance-over-time chart.
       </p>
     );
@@ -47,11 +47,11 @@ export function BalanceChart({ events, height = 160 }: { events: AuditEvent[]; h
         preserveAspectRatio="none"
       >
         <title>{summary}</title>
-        <line x1="0" y1={height - 8} x2="600" y2={height - 8} stroke="currentColor" className="text-slate-200" strokeWidth="1" />
+        <line x1="0" y1={height - 8} x2="600" y2={height - 8} stroke="currentColor" className="text-slate-600" strokeWidth="1" />
         {path?.pts.map((p, i) => (
-          <circle key={i} cx={p.x} cy={p.y} r="2.5" fill="currentColor" className="text-brand-500" />
+          <circle key={i} cx={p.x} cy={p.y} r="2.5" fill="currentColor" className="text-brand-600" />
         ))}
-        <path d={path?.d} fill="none" stroke="currentColor" strokeWidth="2" className="text-brand-600" strokeLinejoin="round" strokeLinecap="round" />
+        <path d={path?.d} fill="none" stroke="currentColor" strokeWidth="2" className="text-brand-600 glow-readout" strokeLinejoin="round" strokeLinecap="round" />
       </svg>
       <figcaption className="sr-only">{summary}</figcaption>
     </figure>

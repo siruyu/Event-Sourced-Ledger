@@ -27,8 +27,8 @@ export function StatusHistoryPanel({ accountId }: { accountId: string }) {
 
   return (
     <Card className="p-5">
-      <h2 className="text-base font-semibold text-slate-900">Account lifecycle</h2>
-      <p className="mt-0.5 text-xs text-slate-500">Rebuilt by replaying the account event stream.</p>
+      <h2 className="macro-section">Account lifecycle</h2>
+      <p className="mt-0.5 font-mono text-xs text-slate-500">Rebuilt by replaying the account event stream.</p>
 
       <div className="mt-4">
         {query.isLoading ? (
@@ -46,20 +46,20 @@ export function StatusHistoryPanel({ accountId }: { accountId: string }) {
               const isLast = i === query.data.length - 1;
               return (
                 <li key={event.seq} className="relative flex gap-3 pb-4">
-                  {!isLast ? <span className="absolute left-[5px] top-4 h-full w-px bg-slate-200" aria-hidden="true" /> : null}
-                  <span className={`mt-1.5 h-2.5 w-2.5 shrink-0 rounded-full ring-4 ring-white ${
+                  {!isLast ? <span className="absolute left-[5px] top-4 h-full w-px bg-slate-500" aria-hidden="true" /> : null}
+                  <span className={`mt-1.5 h-2.5 w-2.5 shrink-0 ring-4 ring-slate-900 ${
                     event.resultingStatus === 'frozen'
-                      ? 'bg-rose-400'
+                      ? 'bg-rose-500'
                       : event.resultingStatus === 'closed'
-                        ? 'bg-slate-300'
+                        ? 'bg-slate-400'
                         : 'bg-emerald-500'
                   }`} aria-hidden="true" />
                   <div className="min-w-0 flex-1">
                     <div className="flex flex-wrap items-center justify-between gap-x-3 gap-y-0.5">
-                      <p className="text-sm font-medium text-slate-900">{meta.label}</p>
+                      <p className="font-mono text-sm font-semibold uppercase tracking-wide text-slate-100">{meta.label}</p>
                       <Badge tone={STATUS_TONE[event.resultingStatus] ?? 'neutral'}>{event.resultingStatus}</Badge>
                     </div>
-                    <p className="mt-0.5 text-xs text-slate-500">
+                    <p className="mt-0.5 font-mono text-xs text-slate-500">
                       {formatDateTime(event.createdAt)}
                       {event.reason ? <> · {event.reason}</> : null}
                     </p>

@@ -2,25 +2,537 @@
 @tailwind components;
 @tailwind utilities;
 
+/* ============================================================================
+   TACTICAL TELEMETRY & CRT TERMINAL
+   Single committed substrate: dark-only (deactivated CRT #0A0A0A).
+   Accent: aviation red #E61919 / #FF2A2A. Terminal green #4AF626 is the single
+   positive/healthy signal. 90-degree corners only. Monospace dominance.
+   ========================================================================== */
+
 @layer base {
+  :root {
+    color-scheme: dark;
+    --crt-bg: #0a0a0a;
+    --crt-panel: #121212;
+    --crt-panel-2: #151515;
+    --crt-line: #262626;
+    --crt-line-strong: #3d3d3d;
+    --crt-ink: #eaeaea;
+    --crt-ink-dim: #9e9e9e;
+    --crt-ink-faint: #636363;
+    --crt-red: #e61919;
+    --crt-red-hi: #ff2a2a;
+    --crt-green: #4af626;
+    --crt-warn: #ffb020;
+  }
+
   html {
     @apply antialiased;
+    background-color: var(--crt-bg);
   }
 
   body {
-    @apply bg-slate-100 text-slate-900;
+    background-color: var(--crt-bg);
+    color: var(--crt-ink);
+    font-family: 'JetBrains Mono', ui-monospace, SFMono-Regular, Menlo, Consolas, monospace;
+    font-size: 0.875rem;
+    letter-spacing: 0.01em;
     font-feature-settings: 'cv11', 'ss01';
   }
 
+  /* CRT phosphor persistence: soft glow on the whole frame. */
+  body::before {
+    content: '';
+    position: fixed;
+    inset: 0;
+    z-index: 0;
+    pointer-events: none;
+    background:
+      radial-gradient(ellipse at 50% 50%, rgba(234, 234, 234, 0.035), transparent 70%);
+  }
+
+  /* Scanline sweep — horizontal electron beam. Disabled in "clean" mode. */
+  body::after {
+    content: '';
+    position: fixed;
+    inset: 0;
+    z-index: 9999;
+    pointer-events: none;
+    background: repeating-linear-gradient(
+      0deg,
+      transparent,
+      transparent 2px,
+      rgba(0, 0, 0, 0.28) 2px,
+      rgba(0, 0, 0, 0.28) 4px
+    );
+    mix-blend-mode: multiply;
+  }
+  html.crt-off body::after {
+    display: none;
+  }
+
   :focus-visible {
-    @apply outline-2 outline-offset-2 outline-brand-500;
+    @apply outline-2 outline-offset-2 outline-red-500;
+  }
+
+  ::selection {
+    background: var(--crt-red);
+    color: var(--crt-bg);
+  }
+
+  /* Mechanical noise — SVG turbulence, unified physical grain. Disabled in "clean" mode. */
+  body > #root::after {
+    content: '';
+    position: fixed;
+    inset: 0;
+    z-index: 9998;
+    pointer-events: none;
+    opacity: 0.05;
+    background-image: url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' width='120' height='120'%3E%3Cfilter id='n'%3E%3CfeTurbulence type='fractalNoise' baseFrequency='0.9' numOctaves='2' stitchTiles='stitch'/%3E%3C/filter%3E%3Crect width='100%25' height='100%25' filter='url(%23n)'/%3E%3C/svg%3E");
+  }
+  html.crt-off body > #root::after {
+    display: none;
+  }
+
+  /* Scrollbars as machined tracks. */
+  * {
+    scrollbar-width: thin;
+    scrollbar-color: var(--crt-line-strong) var(--crt-bg);
+  }
+  ::-webkit-scrollbar {
+    width: 10px;
+    height: 10px;
+  }
+  ::-webkit-scrollbar-track {
+    background: var(--crt-bg);
+  }
+  ::-webkit-scrollbar-thumb {
+    background: var(--crt-line-strong);
+    border: 2px solid var(--crt-bg);
+  }
+  ::-webkit-scrollbar-thumb:hover {
+    background: var(--crt-red);
   }
 }
 
 @layer components {
-  .focus-ring {
-    @apply focus-visible:outline focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-brand-500;
+  /* ------------------------------ Panels ---------------------------------- */
+
+  /* Terminal panel: hairline frame, zero radius, no soft shadow. */
+  .t-panel {
+    background-color: var(--crt-panel);
+    border: 1px solid var(--crt-line);
   }
+
+  .t-panel-strong {
+    background-color: var(--crt-panel);
+    border: 1px solid var(--crt-line-strong);
+  }
+
+  /* Razor-thin grid: parent shows line color through 1px gaps. */
+  .t-grid-lines {
+    display: grid;
+    gap: 1px;
+    background-color: var(--crt-line);
+  }
+  .t-grid-lines > * {
+    background-color: var(--crt-panel);
+  }
+
+  /* ------------------------- Macro typography ------------------------------ */
+
+  .macro-title {
+    font-family: 'Inter', ui-sans-serif, system-ui, sans-serif;
+    font-weight: 900;
+    text-transform: uppercase;
+    letter-spacing: -0.03em;
+    line-height: 0.95;
+    color: var(--crt-ink);
+    font-size: clamp(1.6rem, 4vw, 2.75rem);
+  }
+
+  .macro-section {
+    font-family: 'Inter', ui-sans-serif, system-ui, sans-serif;
+    font-weight: 800;
+    text-transform: uppercase;
+    letter-spacing: -0.02em;
+    line-height: 1;
+    color: var(--crt-ink);
+    font-size: clamp(1rem, 2vw, 1.25rem);
+  }
+
+  /* ------------------------- Micro typography ------------------------------ */
+
+  .tech-label {
+    font-family: 'JetBrains Mono', ui-monospace, monospace;
+    font-size: 0.6875rem;
+    font-weight: 600;
+    text-transform: uppercase;
+    letter-spacing: 0.08em;
+    color: var(--crt-ink-faint);
+  }
+
+  .tech-readout {
+    font-family: 'JetBrains Mono', ui-monospace, monospace;
+    font-size: 0.75rem;
+    text-transform: uppercase;
+    letter-spacing: 0.05em;
+  }
+
+  .tabular {
+    font-variant-numeric: tabular-nums;
+  }
+
+  /* Phosphor glow for a single vital readout. */
+  .glow-readout {
+    color: var(--crt-ink);
+    text-shadow: 0 0 6px rgba(234, 234, 234, 0.35);
+  }
+  .glow-green {
+    color: var(--crt-green);
+    text-shadow: 0 0 6px rgba(74, 246, 38, 0.5);
+  }
+  .glow-red {
+    color: var(--crt-red-hi);
+    text-shadow: 0 0 6px rgba(255, 42, 42, 0.5);
+  }
+
+  /* ------------------------- ASCII framing --------------------------------- */
+
+  /* Corner-bracket frame. */
+  .ascii-frame {
+    position: relative;
+    border: 1px solid var(--crt-line-strong);
+    background-color: var(--crt-panel);
+  }
+  .ascii-frame::before,
+  .ascii-frame::after {
+    content: '';
+    position: absolute;
+    width: 10px;
+    height: 10px;
+    border: 0 solid var(--crt-red);
+    pointer-events: none;
+  }
+  .ascii-frame::before {
+    top: -1px;
+    left: -1px;
+    border-top-width: 2px;
+    border-left-width: 2px;
+  }
+  .ascii-frame::after {
+    bottom: -1px;
+    right: -1px;
+    border-bottom-width: 2px;
+    border-right-width: 2px;
+  }
+
+  /* Crosshair at grid intersections. */
+  .crosshair {
+    position: relative;
+  }
+  .crosshair::before,
+  .crosshair::after {
+    content: '+';
+    position: absolute;
+    font-family: 'JetBrains Mono', monospace;
+    font-size: 0.625rem;
+    color: var(--crt-red);
+    line-height: 1;
+  }
+  .crosshair::before {
+    top: 2px;
+    left: 3px;
+  }
+  .crosshair::after {
+    bottom: 2px;
+    right: 3px;
+  }
+
+  /* Status LED. */
+  .led {
+    display: inline-block;
+    width: 8px;
+    height: 8px;
+    flex: none;
+  }
+  .led-ok {
+    background-color: var(--crt-green);
+    box-shadow: 0 0 6px rgba(74, 246, 38, 0.7);
+    animation: led-blink 2.4s steps(1) infinite;
+  }
+  .led-alert {
+    background-color: var(--crt-red-hi);
+    box-shadow: 0 0 6px rgba(255, 42, 42, 0.7);
+    animation: led-blink 1s steps(1) infinite;
+  }
+  .led-off {
+    background-color: var(--crt-line-strong);
+  }
+
+  @keyframes led-blink {
+    0%, 62% { opacity: 1; }
+    63%, 100% { opacity: 0.35; }
+  }
+
+  /* Danger stripes — thick hazard band. */
+  .hazard-stripe {
+    background: repeating-linear-gradient(
+      -45deg,
+      var(--crt-red-hi) 0 8px,
+      var(--crt-bg) 8px 16px
+    );
+    height: 6px;
+  }
+
+  /* Barcode — repeating verticals. */
+  .barcode {
+    background-image: repeating-linear-gradient(
+      90deg,
+      var(--crt-ink-faint) 0 1px,
+      transparent 1px 3px,
+      var(--crt-ink-faint) 3px 5px,
+      transparent 5px 9px
+    );
+    height: 24px;
+  }
+}
+
+/* ============================================================================
+   GLOBAL UTILITY REMAP
+   The app is built on a fixed Tailwind palette (slate / brand / emerald / rose
+   / amber / white). We commit to the tactical dark substrate and remap those
+   utilities unconditionally so every surface inherits the terminal without
+   touching component wiring. The old light theme is retired.
+   ========================================================================== */
+
+/* Square corners — absolute rejection of border-radius. */
+.rounded-lg,
+.rounded-xl,
+.rounded-2xl,
+.rounded-md,
+.rounded-t-2xl,
+.rounded-full {
+  border-radius: 0 !important;
+}
+
+/* No soft drop shadows — light is emission or nothing. */
+.shadow-card,
+.shadow-lift {
+  box-shadow: none !important;
+}
+
+/* Panels and surfaces. */
+.bg-white {
+  background-color: var(--crt-panel);
+}
+.bg-slate-50 {
+  background-color: var(--crt-panel-2);
+}
+.bg-slate-100 {
+  background-color: #191919;
+}
+.bg-slate-200 {
+  background-color: var(--crt-line);
+}
+.bg-slate-900 {
+  background-color: #050505;
+}
+.hover\:bg-slate-50:hover {
+  background-color: #1b1b1b;
+}
+.hover\:bg-slate-100:hover {
+  background-color: #222222;
+}
+
+/* Text — phosphor ladder. */
+.text-slate-900 {
+  color: var(--crt-ink);
+}
+.text-slate-800 {
+  color: #d6d6d6;
+}
+.text-slate-700 {
+  color: #c0c0c0;
+}
+.text-slate-600 {
+  color: var(--crt-ink-dim);
+}
+.text-slate-500 {
+  color: #7d7d7d;
+}
+.text-slate-400 {
+  color: var(--crt-ink-faint);
+}
+.text-slate-300 {
+  color: #4a4a4a;
+}
+.text-white {
+  color: var(--crt-ink);
+}
+
+/* Borders and rules — machined hairlines. */
+.border-slate-100 {
+  border-color: #1c1c1c;
+}
+.border-slate-200 {
+  border-color: var(--crt-line);
+}
+.border-slate-300 {
+  border-color: var(--crt-line-strong);
+}
+.divide-slate-100 > :not([hidden]) ~ :not([hidden]) {
+  border-color: #1c1c1c;
+}
+.divide-slate-200 > :not([hidden]) ~ :not([hidden]) {
+  border-color: var(--crt-line);
+}
+.ring-slate-200 {
+  --tw-ring-color: var(--crt-line);
+}
+.ring-white {
+  --tw-ring-color: var(--crt-bg);
+}
+
+/* Brand = aviation red (the only accent). */
+.bg-brand-50 {
+  background-color: rgba(255, 42, 42, 0.1);
+}
+.hover\:bg-brand-50:hover {
+  background-color: rgba(255, 42, 42, 0.18);
+}
+.bg-brand-600 {
+  background-color: var(--crt-red);
+}
+.hover\:bg-brand-700:hover {
+  background-color: var(--crt-red-hi);
+}
+.bg-brand-300 {
+  background-color: #a31010;
+}
+.text-brand-700 {
+  color: var(--crt-red-hi);
+}
+.text-brand-800 {
+  color: #ff5c5c;
+}
+.text-brand-600 {
+  color: var(--crt-red-hi);
+}
+.text-brand-500 {
+  color: var(--crt-red-hi);
+}
+.ring-brand-500 {
+  --tw-ring-color: var(--crt-red);
+}
+.ring-brand-600 {
+  --tw-ring-color: var(--crt-red);
+}
+.ring-brand-200 {
+  --tw-ring-color: rgba(255, 42, 42, 0.35);
+}
+.border-brand-200 {
+  border-color: rgba(255, 42, 42, 0.35);
+}
+.border-brand-500 {
+  border-color: var(--crt-red);
+}
+.border-brand-600 {
+  border-color: var(--crt-red);
+}
+.border-brand-700 {
+  border-color: var(--crt-red-hi);
+}
+.outline-brand-500 {
+  outline-color: var(--crt-red);
+}
+.outline-brand-600 {
+  outline-color: var(--crt-red);
+}
+
+/* Emerald = terminal green (single healthy/positive signal). */
+.bg-emerald-50 {
+  background-color: rgba(74, 246, 38, 0.08);
+}
+.bg-emerald-500 {
+  background-color: var(--crt-green);
+}
+.text-emerald-500 {
+  color: var(--crt-green);
+}
+.text-emerald-600 {
+  color: var(--crt-green);
+}
+.text-emerald-700 {
+  color: var(--crt-green);
+}
+.ring-emerald-200 {
+  --tw-ring-color: rgba(74, 246, 38, 0.35);
+}
+
+/* Rose = red (danger / outflow). */
+.bg-rose-50 {
+  background-color: rgba(230, 25, 25, 0.08);
+}
+.bg-rose-600 {
+  background-color: var(--crt-red);
+}
+.hover\:bg-rose-700:hover {
+  background-color: var(--crt-red-hi);
+}
+.bg-rose-300 {
+  background-color: #a31010;
+}
+.text-rose-400 {
+  color: #ff4a4a;
+}
+.text-rose-500 {
+  color: var(--crt-red-hi);
+}
+.text-rose-600 {
+  color: var(--crt-red-hi);
+}
+.text-rose-700 {
+  color: #ff6b6b;
+}
+.text-rose-800 {
+  color: #ff8080;
+}
+.ring-rose-200 {
+  --tw-ring-color: rgba(230, 25, 25, 0.35);
+}
+.border-rose-200 {
+  border-color: rgba(230, 25, 25, 0.35);
+}
+.outline-rose-600 {
+  outline-color: var(--crt-red);
+}
+
+/* Amber = warning. */
+.bg-amber-50 {
+  background-color: rgba(255, 176, 32, 0.08);
+}
+.text-amber-400 {
+  color: var(--crt-warn);
+}
+.text-amber-700 {
+  color: var(--crt-warn);
+}
+.text-amber-800 {
+  color: #ffc24b;
+}
+.fill-amber-400 {
+  fill: var(--crt-warn);
+}
+.ring-amber-200 {
+  --tw-ring-color: rgba(255, 176, 32, 0.35);
+}
+
+/* Native form controls on the dark substrate. */
+input[type='datetime-local'],
+select option {
+  background-color: var(--crt-panel);
+  color: var(--crt-ink);
 }
 
 @media (prefers-reduced-motion: reduce) {
@@ -31,119 +543,4 @@
     animation-iteration-count: 1 !important;
     transition-duration: 0.01ms !important;
   }
-}
-
-/* Dark theme. Scoped to `.dark` on <html>; light mode is untouched.
-   Remaps the fixed utility palette the app was built with so every surface,
-   text, and border adapts without editing individual components. */
-.dark {
-  color-scheme: dark;
-}
-
-.dark body {
-  background-color: #020617;
-  color: #e2e8f0;
-}
-
-.dark .bg-white {
-  background-color: #0f172a;
-}
-.dark .bg-slate-50 {
-  background-color: #111b30;
-}
-.dark .bg-slate-100 {
-  background-color: #1e293b;
-}
-.dark .hover\:bg-slate-50:hover {
-  background-color: #1e293b;
-}
-.dark .hover\:bg-slate-100:hover {
-  background-color: #1e293b;
-}
-
-.dark .text-slate-900 {
-  color: #e2e8f0;
-}
-.dark .text-slate-700 {
-  color: #cbd5e1;
-}
-.dark .text-slate-600 {
-  color: #94a3b8;
-}
-.dark .text-slate-500 {
-  color: #64748b;
-}
-.dark .text-slate-400 {
-  color: #64748b;
-}
-.dark .text-slate-300 {
-  color: #475569;
-}
-
-.dark .border-slate-100 {
-  border-color: #1e293b;
-}
-.dark .border-slate-200 {
-  border-color: #334155;
-}
-.dark .border-slate-300 {
-  border-color: #475569;
-}
-.dark .divide-slate-100 > :not([hidden]) ~ :not([hidden]) {
-  border-color: #1e293b;
-}
-.dark .divide-slate-200 > :not([hidden]) ~ :not([hidden]) {
-  border-color: #334155;
-}
-
-.dark .bg-slate-200 {
-  background-color: #334155;
-}
-.dark .bg-brand-50 {
-  background-color: rgba(99, 102, 241, 0.12);
-}
-.dark .text-brand-700 {
-  color: #a5b4fc;
-}
-.dark .hover\:bg-brand-50:hover {
-  background-color: rgba(99, 102, 241, 0.18);
-}
-
-.dark .bg-emerald-50 {
-  background-color: rgba(16, 185, 129, 0.12);
-}
-.dark .text-emerald-700 {
-  color: #6ee7b7;
-}
-.dark .text-emerald-500 {
-  color: #34d399;
-}
-.dark .ring-emerald-200 {
-  --tw-ring-color: rgba(16, 185, 129, 0.35);
-}
-
-.dark .bg-rose-50 {
-  background-color: rgba(244, 63, 94, 0.12);
-}
-.dark .text-rose-700 {
-  color: #fda4af;
-}
-.dark .text-rose-400 {
-  color: #fb7185;
-}
-.dark .ring-rose-200 {
-  --tw-ring-color: rgba(244, 63, 94, 0.35);
-}
-
-.dark .bg-amber-50 {
-  background-color: rgba(245, 158, 11, 0.12);
-}
-.dark .text-amber-700 {
-  color: #fcd34d;
-}
-.dark .text-amber-800 {
-  color: #fcd34d;
-}
-.dark .ring-amber-200 {
-  --tw-ring-color: rgba(245, 158, 11, 0.35);
 }

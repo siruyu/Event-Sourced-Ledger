@@ -24,8 +24,10 @@ export function getTheme(): Theme {
 
 export function applyTheme(theme: Theme): void {
   const root = document.documentElement;
-  root.classList.toggle('dark', theme === 'dark');
-  root.style.colorScheme = theme;
+  // The substrate is always the tactical dark terminal; the toggle controls the
+  // CRT overlay (scanlines + noise). "light" = clean phosphor, "dark" = full CRT.
+  root.classList.toggle('crt-off', theme === 'light');
+  root.style.colorScheme = 'dark';
 }
 
 export function useTheme(): [Theme, (t: Theme) => void] {

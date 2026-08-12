@@ -14,8 +14,10 @@ const navItems = [
 ];
 
 const navLinkClass = ({ isActive }: { isActive: boolean }) =>
-  `flex min-h-[44px] items-center gap-3 rounded-lg px-3 py-2 text-sm font-medium transition-colors ${
-    isActive ? 'bg-brand-50 text-brand-700' : 'text-slate-600 hover:bg-slate-100 hover:text-slate-900'
+  `flex min-h-[44px] items-center gap-3 border-l-2 px-3 py-2 font-mono text-xs font-semibold uppercase tracking-[0.08em] transition-colors ${
+    isActive
+      ? 'border-brand-600 bg-brand-50/60 text-brand-600'
+      : 'border-transparent text-slate-500 hover:border-slate-600 hover:bg-slate-100/40 hover:text-slate-200'
   }`;
 
 export function Layout({ onCreateAccount }: { onCreateAccount: () => void }) {
@@ -34,20 +36,26 @@ export function Layout({ onCreateAccount }: { onCreateAccount: () => void }) {
   }, []);
 
   return (
-    <div className="min-h-dvh lg:h-dvh lg:grid lg:grid-cols-[16rem_1fr] lg:overflow-hidden">
-      <aside className="flex flex-col border-b border-slate-200 bg-white lg:h-full lg:overflow-y-auto lg:border-b-0 lg:border-r">
-        <div className="flex h-16 items-center justify-between gap-3 px-4 lg:h-auto lg:items-center lg:justify-between lg:px-4 lg:py-6">
-          <Link to="/" className="flex items-center gap-2.5 rounded-lg focus-visible:outline focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-brand-500">
-            <span className="flex h-9 w-9 items-center justify-center rounded-lg bg-brand-600 text-white">
-              <Landmark className="h-5 w-5" aria-hidden="true" />
+    <div className="min-h-dvh lg:h-dvh lg:grid lg:grid-cols-[17rem_1fr] lg:overflow-hidden">
+      <aside className="flex flex-col border-b border-slate-700 bg-black/20 lg:h-full lg:overflow-y-auto lg:border-b-0 lg:border-r">
+        <div className="flex h-16 items-center justify-between gap-3 px-4 lg:h-auto lg:items-start lg:justify-between lg:px-5 lg:py-6">
+          <Link
+            to="/"
+            className="group flex items-center gap-2.5 rounded-sm focus-visible:outline focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-brand-500"
+          >
+            <span className="flex h-9 w-9 items-center justify-center bg-brand-600 text-black">
+              <Landmark className="h-5 w-5" strokeWidth={2.5} aria-hidden="true" />
             </span>
-            <span className="text-base font-semibold tracking-tight text-slate-900">Ledger Console</span>
+            <span className="font-mono text-sm font-bold uppercase leading-tight tracking-[0.12em] text-slate-100">
+              Ledger
+              <span className="block text-[10px] font-medium text-slate-500">// console</span>
+            </span>
           </Link>
 
           <button
             type="button"
             onClick={onCreateAccount}
-            className="inline-flex min-h-[44px] items-center gap-2 rounded-lg bg-brand-600 px-3 py-2 text-sm font-semibold text-white transition-colors hover:bg-brand-700 focus-visible:outline focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-brand-600"
+            className="inline-flex min-h-[44px] items-center gap-2 bg-brand-600 px-3 py-2 font-mono text-xs font-semibold uppercase tracking-[0.08em] text-black transition-colors hover:bg-brand-700 hover:text-white focus-visible:outline focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-brand-600"
           >
             <Plus className="h-4 w-4" aria-hidden="true" />
             <span className="hidden sm:inline">New account</span>
@@ -55,7 +63,7 @@ export function Layout({ onCreateAccount }: { onCreateAccount: () => void }) {
           </button>
         </div>
 
-        <nav aria-label="Primary" className="flex gap-1 overflow-x-auto px-4 pb-3 lg:flex-col lg:overflow-visible lg:px-3 lg:pt-2">
+        <nav aria-label="Primary" className="flex gap-0.5 overflow-x-auto px-4 pb-3 lg:flex-col lg:overflow-visible lg:px-3 lg:pt-2">
           {navItems.map(({ to, end, icon: Icon, label }) => (
             <NavLink key={to} to={to} end={end} className={navLinkClass}>
               <Icon className="h-4 w-4 shrink-0" aria-hidden="true" />
@@ -66,16 +74,18 @@ export function Layout({ onCreateAccount }: { onCreateAccount: () => void }) {
 
         {recents.length > 0 ? (
           <div className="mt-2 hidden px-3 lg:block">
-            <p className="px-3 text-[11px] font-semibold uppercase tracking-wider text-slate-400">Recent</p>
+            <p className="tech-label px-3">
+              <span className="text-brand-600">{'>'}</span> Recent access
+            </p>
             <ul className="mt-1">
               {recents.map((a) => (
                 <li key={a.id}>
                   <NavLink
                     to={`/accounts/${a.id}`}
-                    className="flex min-h-[44px] items-center gap-3 rounded-lg px-3 py-2 text-sm text-slate-600 hover:bg-slate-100 hover:text-slate-900 focus-visible:outline focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-brand-500"
+                    className="flex min-h-[44px] items-center gap-3 border-l-2 border-transparent px-3 py-2 font-mono text-xs text-slate-500 transition-colors hover:border-slate-600 hover:bg-slate-100/40 hover:text-slate-200 focus-visible:outline focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-brand-500"
                   >
                     <span className="truncate">{a.name}</span>
-                    <span className="ml-auto truncate font-mono text-[11px] text-slate-400">{a.accountNumber}</span>
+                    <span className="ml-auto truncate text-[10px] text-slate-600">{a.accountNumber}</span>
                   </NavLink>
                 </li>
               ))}
@@ -83,18 +93,18 @@ export function Layout({ onCreateAccount }: { onCreateAccount: () => void }) {
           </div>
         ) : null}
 
-        <div className="mt-auto space-y-1 border-t border-slate-100 px-3 py-4 lg:mt-0">
+        <div className="mt-auto space-y-1 border-t border-slate-700 px-3 py-4 lg:mt-0">
           <ThemeToggle />
           <Link
             to="/docs"
             target="_blank"
             rel="noreferrer"
-            className="flex min-h-[44px] items-center gap-3 rounded-lg px-3 py-2 text-sm font-medium text-slate-600 transition-colors hover:bg-slate-100 hover:text-slate-900 focus-visible:outline focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-brand-500"
+            className="flex min-h-[44px] items-center gap-3 border-l-2 border-transparent px-3 py-2 font-mono text-xs font-semibold uppercase tracking-[0.08em] text-slate-500 transition-colors hover:border-slate-600 hover:bg-slate-100/40 hover:text-slate-200 focus-visible:outline focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-brand-500"
           >
             <ShieldCheck className="h-4 w-4 shrink-0" aria-hidden="true" />
             API docs (Swagger)
           </Link>
-          <label htmlFor="api-key" className="flex items-center gap-1.5 px-3 pt-2 text-xs font-medium text-slate-500">
+          <label htmlFor="api-key" className="flex items-center gap-1.5 px-3 pt-2 font-mono text-[10px] font-semibold uppercase tracking-[0.1em] text-slate-500">
             <KeyRound className="h-3.5 w-3.5" aria-hidden="true" />
             API key
           </label>
@@ -105,9 +115,9 @@ export function Layout({ onCreateAccount }: { onCreateAccount: () => void }) {
             onChange={(e) => setApiKeyState(e.target.value)}
             placeholder="Optional — for keyed APIs"
             autoComplete="off"
-            className="mt-1 min-h-[44px] w-full rounded-lg border border-slate-300 bg-white px-3 py-2 text-sm text-slate-900 placeholder:text-slate-400 focus:border-brand-500 focus:outline-none focus:ring-2 focus:ring-brand-500/20"
+            className="mt-1 min-h-[44px] w-full border border-slate-600 bg-black/40 px-3 py-2 font-mono text-sm text-slate-100 placeholder:text-slate-600 focus:border-brand-600 focus:outline-none focus:ring-1 focus:ring-brand-600/40"
           />
-          <p className="px-3 pt-1 text-[11px] text-slate-400">Sent as x-api-key on every request (session only).</p>
+          <p className="px-3 pt-1 text-[10px] text-slate-600">Sent as x-api-key on every request (session only).</p>
         </div>
       </aside>
 

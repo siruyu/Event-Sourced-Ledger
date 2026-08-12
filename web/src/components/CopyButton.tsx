@@ -25,10 +25,10 @@ export function CopyButton({ value, label = 'Copy' }: { value: string; label?: s
       onClick={onCopy}
       aria-label={`${label}: ${value}`}
       title={`${label}: ${value}`}
-      className="inline-flex min-h-[44px] items-center gap-1.5 rounded-lg px-2 text-sm font-medium text-slate-500 transition-colors hover:bg-slate-100 hover:text-slate-900 focus-visible:outline focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-brand-500"
+      className="inline-flex min-h-[44px] items-center gap-1.5 border border-transparent px-2 font-mono text-xs font-medium uppercase tracking-wide text-slate-500 transition-colors hover:border-brand-600 hover:text-brand-600 focus-visible:outline focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-brand-500"
     >
       {copied ? (
-        <Check className="h-4 w-4 text-emerald-600" aria-hidden="true" />
+        <Check className="h-4 w-4 text-emerald-500" aria-hidden="true" />
       ) : (
         <Copy className="h-4 w-4" aria-hidden="true" />
       )}

@@ -1,11 +1,16 @@
 import { createContext, useCallback, useContext, useEffect, useRef, useState } from 'react';
 import type { ButtonHTMLAttributes, InputHTMLAttributes, ReactNode, SelectHTMLAttributes } from 'react';
-import { AlertTriangle, CheckCircle2, Loader2, X, XCircle } from 'lucide-react';
 
 /* ---------------------------------- Spinner --------------------------------- */
 
 export function Spinner({ className = '' }: { className?: string }) {
-  return <Loader2 className={`animate-spin ${className}`} aria-hidden="true" />;
+  return (
+    <span
+      role="status"
+      aria-label="Loading"
+      className={`inline-block h-4 w-4 border border-current border-t-transparent align-middle animate-spin ${className}`}
+    />
+  );
 }
 
 /* ---------------------------------- Button --------------------------------- */
@@ -14,11 +19,11 @@ type ButtonVariant = 'primary' | 'secondary' | 'ghost' | 'danger';
 
 const buttonVariants: Record<ButtonVariant, string> = {
   primary:
-    'bg-brand-600 text-white hover:bg-brand-700 focus-visible:outline-brand-600 disabled:bg-brand-300',
+    'bg-brand-600 text-white hover:bg-brand-700 disabled:opacity-40',
   secondary:
-    'bg-white text-slate-700 border border-slate-300 hover:bg-slate-50 focus-visible:outline-brand-600 disabled:opacity-50',
-  ghost: 'text-slate-600 hover:bg-slate-100 hover:text-slate-900 disabled:opacity-50',
-  danger: 'bg-rose-600 text-white hover:bg-rose-700 focus-visible:outline-rose-600 disabled:bg-rose-300',
+    'bg-transparent text-slate-200 border border-slate-500 hover:border-brand-600 hover:text-brand-600 disabled:opacity-40',
+  ghost: 'text-slate-500 hover:text-brand-600 disabled:opacity-40',
+  danger: 'bg-rose-600 text-white hover:bg-rose-700 disabled:opacity-40',
 };
 
 interface ButtonProps extends ButtonHTMLAttributes<HTMLButtonElement> {
@@ -29,11 +34,11 @@ interface ButtonProps extends ButtonHTMLAttributes<HTMLButtonElement> {
 export function Button({ variant = 'primary', loading, className = '', children, disabled, ...rest }: ButtonProps) {
   return (
     <button
-      className={`inline-flex min-h-[44px] items-center justify-center gap-2 rounded-lg px-4 py-2.5 text-sm font-semibold transition-colors duration-150 focus-visible:outline focus-visible:outline-2 focus-visible:outline-offset-2 disabled:cursor-not-allowed disabled:active:scale-100 active:scale-[0.98] ${buttonVariants[variant]} ${className}`}
+      className={`inline-flex min-h-[44px] items-center justify-center gap-2 border px-4 py-2.5 font-mono text-xs font-semibold uppercase tracking-[0.08em] transition-colors duration-150 focus-visible:outline focus-visible:outline-2 focus-visible:outline-offset-2 disabled:cursor-not-allowed ${buttonVariants[variant]} ${className}`}
       disabled={disabled || loading}
       {...rest}
     >
-      {loading ? <Spinner className="h-4 w-4" /> : null}
+      {loading ? <Spinner className="h-3.5 w-3.5" /> : null}
       {children}
     </button>
   );
@@ -43,13 +48,17 @@ export function Button({ variant = 'primary', loading, className = '', children,
 
 export function Badge({ children, tone = 'neutral' }: { children: ReactNode; tone?: 'neutral' | 'success' | 'danger' | 'brand' }) {
   const tones = {
-    neutral: 'bg-slate-100 text-slate-700 ring-slate-200',
-    success: 'bg-emerald-50 text-emerald-700 ring-emerald-200',
-    danger: 'bg-rose-50 text-rose-700 ring-rose-200',
-    brand: 'bg-brand-50 text-brand-700 ring-brand-200',
+    neutral: 'text-slate-400 border-slate-600',
+    success: 'text-emerald-500 border-emerald-500/60 glow-green',
+    danger: 'text-rose-500 border-rose-500/60 glow-red',
+    brand: 'text-slate-100 border-brand-600',
   } as const;
   return (
-    <span className={`inline-flex items-center rounded-md px-2 py-0.5 text-xs font-medium ring-1 ring-inset ${tones[tone]}`}>
+    <span className={`inline-flex items-center gap-1.5 border px-2 py-0.5 font-mono text-[10px] font-semibold uppercase tracking-[0.1em] ${tones[tone]}`}>
+      <span
+        className={`h-1.5 w-1.5 flex-none ${tone === 'success' ? 'led led-ok' : tone === 'danger' ? 'led led-alert' : 'bg-current opacity-60'}`}
+        aria-hidden="true"
+      />
       {children}
     </span>
   );
@@ -58,19 +67,19 @@ export function Badge({ children, tone = 'neutral' }: { children: ReactNode; ton
 /* ------------------------------- Form controls ------------------------------ */
 
 const fieldBase =
-  'min-h-[44px] w-full rounded-lg border border-slate-300 bg-white px-3 py-2 text-sm text-slate-900 placeholder:text-slate-400 focus:border-brand-500 focus:outline-none focus:ring-2 focus:ring-brand-500/20 disabled:cursor-not-allowed disabled:bg-slate-50 disabled:opacity-60';
+  'min-h-[44px] w-full border border-slate-600 bg-black/40 px-3 py-2 font-mono text-sm text-slate-100 placeholder:text-slate-600 focus:border-brand-600 focus:outline-none focus:ring-1 focus:ring-brand-600/40 disabled:cursor-not-allowed disabled:opacity-50';
 
 export function Field({ label, hint, error, children, id }: { label: string; hint?: string; error?: string; children: ReactNode; id: string }) {
   return (
     <div className="space-y-1.5">
-      <label htmlFor={id} className="block text-sm font-medium text-slate-700">
-        {label}
+      <label htmlFor={id} className="tech-label block text-slate-500">
+        {'['} {label} {'>'}
       </label>
       {children}
       {hint && !error ? <p className="text-xs text-slate-500">{hint}</p> : null}
       {error ? (
-        <p className="flex items-center gap-1 text-xs font-medium text-rose-600" role="alert">
-          <AlertTriangle className="h-3.5 w-3.5 shrink-0" aria-hidden="true" />
+        <p className="flex items-center gap-1.5 font-mono text-xs font-medium uppercase tracking-wide text-rose-500" role="alert">
+          <span className="led led-alert" aria-hidden="true" />
           {error}
         </p>
       ) : null}
@@ -89,8 +98,21 @@ export function Select({ className = '', ...rest }: SelectHTMLAttributes<HTMLSel
 /* ---------------------------------- Card ------------------------------------ */
 
 export function Card({ children, className = '' }: { children: ReactNode; className?: string }) {
+  return <div className={`t-panel ${className}`}>{children}</div>;
+}
+
+/* ---------------------------------- PageHeader ------------------------------ */
+
+export function PageHeader({ index, title, meta }: { index: string; title: string; meta?: string }) {
   return (
-    <div className={`rounded-xl border border-slate-200 bg-white shadow-card ${className}`}>{children}</div>
+    <header className="border-b border-slate-700 pb-4">
+      <p className="tech-label">
+        <span className="text-brand-600">{'<<<'}</span> CHANNEL {index} <span className="text-brand-600">{'>>>'}</span>
+        {meta ? <span className="ml-3 text-slate-600">{meta}</span> : null}
+      </p>
+      <h1 className="macro-title mt-2">{title}</h1>
+      <div className="hazard-stripe mt-4" aria-hidden="true" />
+    </header>
   );
 }
 
@@ -120,18 +142,21 @@ export function Modal({
 
   return (
     <div className="fixed inset-0 z-50 flex items-end justify-center sm:items-center" role="dialog" aria-modal="true" aria-label={title}>
-      <div className="absolute inset-0 bg-slate-900/50" onClick={onClose} aria-hidden="true" />
-      <div className="relative z-10 w-full max-w-md animate-fade-in rounded-t-2xl bg-white p-6 shadow-lift sm:rounded-2xl">
-        <div className="mb-4 flex items-center justify-between gap-4">
-          <h2 className="text-lg font-semibold text-slate-900">{title}</h2>
+      <div className="absolute inset-0 bg-black/80" onClick={onClose} aria-hidden="true" />
+      <div className="ascii-frame relative z-10 w-full max-w-md p-6 animate-fade-in sm:max-w-lg">
+        <div className="mb-4 flex items-center justify-between gap-4 border-b border-slate-700 pb-3">
+          <h2 className="macro-section flex items-center gap-2">
+            <span className="text-brand-600">{'>'}</span>
+            {title}
+          </h2>
           <button
             ref={closeRef}
             type="button"
             onClick={onClose}
             aria-label="Close dialog"
-            className="inline-flex h-10 w-10 items-center justify-center rounded-lg text-slate-400 transition-colors hover:bg-slate-100 hover:text-slate-700 focus-visible:outline focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-brand-500"
+            className="inline-flex h-10 w-10 items-center justify-center border border-slate-600 font-mono text-sm text-slate-400 transition-colors hover:border-brand-600 hover:text-brand-600 focus-visible:outline focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-brand-500"
           >
-            <X className="h-5 w-5" aria-hidden="true" />
+            X
           </button>
         </div>
         <div>{children}</div>
@@ -145,8 +170,12 @@ export function Modal({
 
 export function EmptyState({ title, hint }: { title: string; hint?: string }) {
   return (
-    <div className="flex flex-col items-center justify-center gap-1 rounded-xl border border-dashed border-slate-300 py-12 text-center">
-      <p className="text-sm font-medium text-slate-700">{title}</p>
+    <div className="t-panel-strong crosshair flex flex-col items-center justify-center gap-1 px-6 py-12 text-center">
+      <p className="font-mono text-xs font-semibold uppercase tracking-[0.1em] text-slate-400">
+        <span className="text-brand-600">[ </span>
+        {title}
+        <span className="text-brand-600"> ]</span>
+      </p>
       {hint ? <p className="max-w-sm text-xs text-slate-500">{hint}</p> : null}
     </div>
   );
@@ -154,9 +183,9 @@ export function EmptyState({ title, hint }: { title: string; hint?: string }) {
 
 export function ErrorState({ message, onRetry }: { message: string; onRetry?: () => void }) {
   return (
-    <div className="flex flex-col items-center justify-center gap-3 rounded-xl border border-rose-200 bg-rose-50 py-10 text-center">
-      <XCircle className="h-8 w-8 text-rose-500" aria-hidden="true" />
-      <p className="max-w-sm text-sm text-rose-700">{message}</p>
+    <div className="ascii-frame crosshair flex flex-col items-center justify-center gap-3 border-rose-600/60 px-6 py-10 text-center">
+      <p className="led led-alert" aria-hidden="true" />
+      <p className="font-mono text-sm uppercase tracking-wide text-rose-500">{message}</p>
       {onRetry ? (
         <Button variant="secondary" onClick={onRetry}>
           Retry
@@ -197,14 +226,12 @@ export function ToastProvider({ children }: { children: ReactNode }) {
         {toasts.map((t) => (
           <div
             key={t.id}
-            className="pointer-events-auto flex items-start gap-3 rounded-lg border border-slate-200 bg-white p-3 shadow-lift"
+            className={`ascii-frame pointer-events-auto flex items-start gap-3 p-3 ${
+              t.tone === 'success' ? 'border-emerald-500/60' : 'border-rose-500/60'
+            }`}
           >
-            {t.tone === 'success' ? (
-              <CheckCircle2 className="mt-0.5 h-5 w-5 shrink-0 text-emerald-500" aria-hidden="true" />
-            ) : (
-              <XCircle className="mt-0.5 h-5 w-5 shrink-0 text-rose-500" aria-hidden="true" />
-            )}
-            <p className="text-sm text-slate-800">{t.message}</p>
+            <span className={`mt-1 h-2 w-2 flex-none ${t.tone === 'success' ? 'led led-ok' : 'led led-alert'}`} aria-hidden="true" />
+            <p className="font-mono text-xs uppercase tracking-wide text-slate-300">{t.message}</p>
           </div>
         ))}
       </div>

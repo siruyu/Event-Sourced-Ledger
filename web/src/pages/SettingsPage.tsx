@@ -1,7 +1,7 @@
 import { useEffect, useState } from 'react';
 import { KeyRound, Moon, Ruler, Wallet } from 'lucide-react';
 import { getApiKey, setApiKey } from '@/api/client';
-import { Card, Select, useToast } from '@/components/ui';
+import { Card, PageHeader, Select, useToast } from '@/components/ui';
 import { useTheme, useSystemTheme, type Theme } from '@/lib/theme';
 import { getSettings, setSettings } from '@/lib/settings';
 import { CopyButton } from '@/components/CopyButton';
@@ -24,10 +24,10 @@ export function SettingsPage() {
     setThemeMode(value);
     if (value === 'system') {
       followSystem();
-      toast('success', 'Following system theme');
+      toast('success', 'CRT overlay follows system');
     } else {
       setTheme(value as Theme);
-      toast('success', `${value === 'dark' ? 'Dark' : 'Light'} theme enabled`);
+      toast('success', `${value === 'dark' ? 'CRT overlay enabled' : 'CRT overlay off'}`);
     }
   };
 
@@ -44,28 +44,25 @@ export function SettingsPage() {
 
   return (
     <div className="space-y-6">
-      <div>
-        <h1 className="text-2xl font-semibold tracking-tight text-slate-900">Settings</h1>
-        <p className="mt-1 text-sm text-slate-500">Preferences live in this browser (localStorage) and never leave your machine.</p>
-      </div>
+      <PageHeader index="05" title="Settings" meta="LOCAL PREFERENCES" />
 
       <Card className="p-5">
-        <h2 className="flex items-center gap-2 text-base font-semibold text-slate-900">
+        <h2 className="flex items-center gap-2 macro-section">
           <Moon className="h-4 w-4 text-slate-400" aria-hidden="true" />
-          Appearance
+          Display
         </h2>
         <div className="mt-3 flex flex-wrap items-center gap-3">
-          <Select value={themeMode} onChange={(e) => onTheme(e.target.value)} className="w-40" aria-label="Theme">
-            <option value="light">Light</option>
-            <option value="dark">Dark</option>
+          <Select value={themeMode} onChange={(e) => onTheme(e.target.value)} className="w-44" aria-label="Display mode">
+            <option value="dark">CRT overlay: on</option>
+            <option value="light">CRT overlay: off</option>
             <option value="system">Follow system</option>
           </Select>
-          <p className="text-sm text-slate-500">Switch the whole console between light and dark themes.</p>
+          <p className="text-sm text-slate-500">The terminal is always dark; this toggles the CRT scanlines + grain overlay.</p>
         </div>
       </Card>
 
       <Card className="p-5">
-        <h2 className="flex items-center gap-2 text-base font-semibold text-slate-900">
+        <h2 className="flex items-center gap-2 macro-section">
           <KeyRound className="h-4 w-4 text-slate-400" aria-hidden="true" />
           API key
         </h2>
@@ -80,7 +77,7 @@ export function SettingsPage() {
             onChange={(e) => setApiKeyState(e.target.value)}
             placeholder="Optional — sent as x-api-key on every request"
             autoComplete="off"
-            className="min-h-[44px] w-full rounded-lg border border-slate-300 bg-white px-3 py-2 text-sm text-slate-900 placeholder:text-slate-400 focus:border-brand-500 focus:outline-none focus:ring-2 focus:ring-brand-500/20"
+            className="min-h-[44px] w-full border border-slate-600 bg-black/40 px-3 py-2 font-mono text-sm text-slate-100 placeholder:text-slate-600 focus:border-brand-600 focus:outline-none focus:ring-1 focus:ring-brand-600/40"
           />
           <p className="text-xs text-slate-500">
             Needed only when the API is running with <code className="font-mono">API_KEYS</code> set. The key is held for this browser
@@ -90,7 +87,7 @@ export function SettingsPage() {
       </Card>
 
       <Card className="p-5">
-        <h2 className="flex items-center gap-2 text-base font-semibold text-slate-900">
+        <h2 className="flex items-center gap-2 macro-section">
           <Wallet className="h-4 w-4 text-slate-400" aria-hidden="true" />
           Display currency
         </h2>
@@ -107,7 +104,7 @@ export function SettingsPage() {
       </Card>
 
       <Card className="p-5">
-        <h2 className="flex items-center gap-2 text-base font-semibold text-slate-900">
+        <h2 className="flex items-center gap-2 macro-section">
           <Ruler className="h-4 w-4 text-slate-400" aria-hidden="true" />
           Default page size
         </h2>
