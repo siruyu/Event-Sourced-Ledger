@@ -34,8 +34,8 @@ export function Layout({ onCreateAccount }: { onCreateAccount: () => void }) {
   }, []);
 
   return (
-    <div className="min-h-dvh lg:grid lg:grid-cols-[16rem_1fr]">
-      <aside className="flex flex-col border-b border-slate-200 bg-white lg:min-h-dvh lg:border-b-0 lg:border-r">
+    <div className="min-h-dvh lg:h-dvh lg:grid lg:grid-cols-[16rem_1fr] lg:overflow-hidden">
+      <aside className="flex flex-col border-b border-slate-200 bg-white lg:h-full lg:overflow-y-auto lg:border-b-0 lg:border-r">
         <div className="flex h-16 items-center justify-between gap-3 px-4 lg:h-auto lg:items-center lg:justify-between lg:px-4 lg:py-6">
           <Link to="/" className="flex items-center gap-2.5 rounded-lg focus-visible:outline focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-brand-500">
             <span className="flex h-9 w-9 items-center justify-center rounded-lg bg-brand-600 text-white">
@@ -111,7 +111,7 @@ export function Layout({ onCreateAccount }: { onCreateAccount: () => void }) {
         </div>
       </aside>
 
-      <main className="min-w-0 px-4 py-6 sm:px-6 lg:px-10 lg:py-8">
+      <main className="min-w-0 flex-1 overflow-y-auto px-4 py-6 sm:px-6 lg:h-full lg:px-10 lg:py-8">
         <Outlet />
       </main>
     </div>
